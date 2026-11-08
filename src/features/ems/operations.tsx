@@ -6,13 +6,13 @@ import { DataTable } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody, CardHeader, PageHeader } from '@/components/ui/card';
 import { Dialog, useToast } from '@/components/ui/overlay';
-import { Field, Input, Select, Textarea } from '@/components/ui/form';
-import { StatusBadge, Spinner, EmptyState, Td, Th, TableWrap } from '@/components/ui/data';
+import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form';
+import { Badge, StatusBadge, Spinner, EmptyState, Td, Th, TableWrap } from '@/components/ui/data';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
 import { BRAND } from '@/config/brand';
-import { can, ROLE_LABELS, ALL_ROLES, type Role } from '@/config/permissions';
+import { assignableRoles, can, rolesOf, ROLE_LABELS, ALL_ROLES, type Role } from '@/config/permissions';
 import { useSettings } from '@/hooks/useSettings';
 import { batchSet, patchDoc } from '@/services/db';
 import { generateInvoices, fullName, recordPayment } from '@/services/ems';
@@ -228,33 +228,70 @@ export function PaymentsPage() {
 
 /* ---------------------------------------------------------- users & audit */
 export function UsersPage() {
-  const { role: me } = useAuth();
+  const { roles: myRoles, uid: myUid } = useAuth();
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ email: '', name: '', role: 'teacher' as Role });
+  const [f, setF] = useState<{ email: string; name: string; roles: Role[] }>({ email: '', name: '', roles: ['teacher'] });
   const [created, setCreated] = useState<{ email: string; pw: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const assignable = ALL_ROLES.filter((r) => (me === 'super_admin' ? true : r !== 'super_admin' && r !== 'admin'));
+  const [edit, setEdit] = useState<WithId<UserProfile> | null>(null);
+  const [sel, setSel] = useState<Role[]>([]);
+  const [primary, setPrimary] = useState<Role>('teacher');
+  const assignable = assignableRoles(myRoles);
+  const toggle = (list: Role[], r: Role) => (list.includes(r) ? list.filter((x) => x !== r) : [...list, r]);
+
   const create = async () => {
     if (!f.email || !f.name) return toast.error('Name and email are required.');
+    if (f.roles.length === 0) return toast.error('Choose at least one role.');
     setBusy(true);
-    try { const pw = randomPassword(); await createAccount({ email: f.email, password: pw, displayName: f.name, role: f.role }); setCreated({ email: f.email, pw }); }
+    try { const pw = randomPassword(); await createAccount({ email: f.email, password: pw, displayName: f.name, role: f.roles[0]!, extraRoles: f.roles.slice(1) }); setCreated({ email: f.email, pw }); }
     catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
   };
+
+  const openEdit = (u: WithId<UserProfile>) => { const r = rolesOf(u); setEdit(u); setSel(r); setPrimary(r.includes(u.role) ? u.role : (r[0] ?? 'teacher')); };
+  /** Roles this admin may not add/remove on this person (top tier unless super admin). */
+  const locked = (r: Role) => !assignable.includes(r);
+  const saveRoles = async () => {
+    if (!edit) return;
+    if (sel.length === 0) return toast.error('A person needs at least one role.');
+    const before = rolesOf(edit);
+    const added = sel.filter((r) => !before.includes(r)); const removed = before.filter((r) => !sel.includes(r));
+    if (edit.id === myUid && removed.length) return toast.error('You cannot remove your own roles. Ask another Super Administrator.');
+    setBusy(true);
+    try {
+      const prim = sel.includes(primary) ? primary : sel[0]!;
+      await patchDoc(C.users, edit.id, { roles: sel, role: prim });
+      if (added.length) void audit('role.assign', `users/${edit.id}`, `${edit.email}: +${added.join(', ')}`);
+      if (removed.length) void audit('role.remove', `users/${edit.id}`, `${edit.email}: -${removed.join(', ')}`);
+      toast.success('Roles updated. They apply at the person\'s next page load.'); setEdit(null);
+    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
+  };
+
   return (
     <>
       <CrudPage config={{
-        collection: C.users, singular: 'User', plural: 'Users & access', description: 'Portal accounts. Suspending an account blocks all access immediately (enforced by security rules).', canCreate: false, canDelete: false, auditActions: true,
-        fields: [{ name: 'displayName', label: 'Name', type: 'text', required: true }, { name: 'role', label: 'Role', type: 'select', required: true, options: assignable.map((r) => ({ value: r, label: ROLE_LABELS[r] })) }, { name: 'status', label: 'Status', type: 'select', required: true, options: ['active', 'suspended', 'pending'].map((v) => ({ value: v, label: v })) }, { name: 'phone', label: 'Phone', type: 'tel' }],
-        columns: [{ key: 'n', header: 'User', primary: true, cell: (r: WithId<UserProfile> & Row) => <div><p className="font-medium">{r.displayName}</p><p className="text-xs text-muted">{r.email}</p></div> }, { key: 'r', header: 'Role', cell: (r: WithId<UserProfile> & Row) => ROLE_LABELS[r.role] ?? r.role }, { key: 's', header: 'Status', cell: (r: WithId<UserProfile> & Row) => <StatusBadge status={r.status} /> }, { key: 'd', header: 'Created', cell: (r: Row) => fmtDate(r.createdAt) }],
-        searchKeys: ['displayName', 'email', 'role'], filters: [{ name: 'role', label: 'Role', options: ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] })) }, { name: 'status', label: 'Status', options: ['active', 'suspended', 'pending'].map((v) => ({ value: v, label: v })) }],
-        headerActions: <Button onClick={() => { setOpen(true); setCreated(null); setF({ email: '', name: '', role: 'teacher' }); }}>Create account</Button>,
+        collection: C.users, singular: 'User', plural: 'Users & access', description: 'One login per person, with one or more roles. Suspending an account blocks all access immediately (enforced by security rules).', canCreate: false, canDelete: false, auditActions: true,
+        fields: [{ name: 'displayName', label: 'Name', type: 'text', required: true }, { name: 'status', label: 'Status', type: 'select', required: true, options: ['active', 'suspended', 'pending'].map((v) => ({ value: v, label: v })) }, { name: 'phone', label: 'Phone', type: 'tel' }],
+        columns: [{ key: 'n', header: 'User', primary: true, cell: (r: WithId<UserProfile> & Row) => <div><p className="font-medium">{r.displayName}</p><p className="text-xs text-muted">{r.email}</p></div> }, { key: 'r', header: 'Roles', cell: (r: WithId<UserProfile> & Row) => <span className="flex flex-wrap gap-1">{rolesOf(r).map((x) => <Badge key={x}>{ROLE_LABELS[x]}</Badge>)}</span> }, { key: 's', header: 'Status', cell: (r: WithId<UserProfile> & Row) => <StatusBadge status={r.status} /> }, { key: 'd', header: 'Created', cell: (r: Row) => fmtDate(r.createdAt) }],
+        searchKeys: ['displayName', 'email', 'role'], filters: [{ name: 'role', label: 'Primary role', options: ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] })) }, { name: 'status', label: 'Status', options: ['active', 'suspended', 'pending'].map((v) => ({ value: v, label: v })) }],
+        rowActions: (r: Row) => (assignable.length ? <Button size="sm" variant="outline" onClick={() => openEdit(r as unknown as WithId<UserProfile>)}>Roles</Button> : null),
+        headerActions: <Button onClick={() => { setOpen(true); setCreated(null); setF({ email: '', name: '', roles: ['teacher'] }); }}>Create account</Button>,
       } as CrudConfig<Row>} />
+
       <Dialog open={open} onClose={() => setOpen(false)} title="Create account" size="sm" footer={created ? <Button onClick={() => setOpen(false)}>Done</Button> : <><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button loading={busy} onClick={() => void create()}>Create</Button></>}>
         {created ? <div className="space-y-2 text-sm"><p className="text-ok">Account created.</p><p className="rounded bg-cream p-3 font-mono text-[13px]">{created.email}<br />{created.pw}</p><p className="text-xs text-muted">Shown once — share securely.</p></div> : (
           <div className="space-y-4"><Field label="Full name" required>{(a) => <Input {...a} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />}</Field>
             <Field label="Email" required>{(a) => <Input {...a} type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Field>
-            <Field label="Role">{(a) => <Select {...a} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>{assignable.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</Select>}</Field></div>)}
+            <fieldset><legend className="mb-1 text-sm font-medium">Roles</legend><p className="mb-2 text-xs text-muted">The first role you tick is the starting workspace. One person can hold several (e.g. Teacher + Parent).</p>
+              <div className="grid gap-1.5">{assignable.map((r) => <Checkbox key={r} label={ROLE_LABELS[r]} checked={f.roles.includes(r)} onChange={() => setF({ ...f, roles: toggle(f.roles, r) })} />)}</div></fieldset></div>)}
+      </Dialog>
+
+      <Dialog open={!!edit} onClose={() => setEdit(null)} title="Manage roles" description={edit ? `${edit.displayName} · ${edit.email}` : ''} size="sm" footer={<><Button variant="outline" onClick={() => setEdit(null)}>Cancel</Button><Button loading={busy} onClick={() => void saveRoles()}>Save roles</Button></>}>
+        <div className="space-y-4">
+          <div className="grid gap-1.5">{ALL_ROLES.map((r) => <Checkbox key={r} label={<span>{ROLE_LABELS[r]}{locked(r) && <span className="ml-1 text-xs text-muted">(Super Administrator only)</span>}</span>} checked={sel.includes(r)} disabled={locked(r)} onChange={() => setSel(toggle(sel, r))} />)}</div>
+          <Field label="Default workspace">{(a) => <Select {...a} value={sel.includes(primary) ? primary : (sel[0] ?? '')} onChange={(e) => setPrimary(e.target.value as Role)}>{sel.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</Select>}</Field>
+          <p className="text-xs text-muted">Role changes are enforced by the database rules and recorded in the audit log.</p>
+        </div>
       </Dialog>
     </>
   );

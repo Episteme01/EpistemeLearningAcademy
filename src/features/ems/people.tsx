@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link2, KeyRound, ArrowUpRight } from 'lucide-react';
+import { Link2, KeyRound, ArrowUpRight, UserPlus } from 'lucide-react';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { Button } from '@/components/ui/button';
 import { Dialog, useToast } from '@/components/ui/overlay';
@@ -9,13 +9,14 @@ import { Avatar, StatusBadge } from '@/components/ui/data';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
-import { can, type Role } from '@/config/permissions';
+import { can, rolesOf, ROLE_LABELS, type Role } from '@/config/permissions';
 import { createAccount, randomPassword } from '@/services/accounts';
 import { nextStaffNo, nextStudentNo } from '@/services/counters';
 import { addStudentHistory, attachParentUid, fullName, linkParent, promoteStudents } from '@/services/ems';
 import { getById, patchDoc } from '@/services/db';
 import { errorMessage, fmtDate } from '@/lib/utils';
-import type { ClassRoom, Parent, Staff, Student, WithId } from '@/types/models';
+import { audit } from '@/services/audit';
+import type { ClassRoom, Parent, Staff, Student, UserProfile, WithId } from '@/types/models';
 import { classRef } from './refs';
 import { CLASS_LEVELS } from '@/features/public/content';
 
@@ -151,7 +152,25 @@ export function StudentsPage() {
 export function ParentsPage() {
   const { role } = useAuth();
   const write = can(role, 'parents.write');
+  const toast = useToast();
+  const { roles } = useAuth();
+  const canLink = roles.includes('super_admin') || roles.includes('admin');
   const [account, setAccount] = useState<(WithId<Parent> & Record<string, unknown>) | null>(null);
+  const [linkAcc, setLinkAcc] = useState<(WithId<Parent> & Record<string, unknown>) | null>(null);
+  const [pick, setPick] = useState('');
+  const users = useCollection<UserProfile>(C.users, () => (canLink ? [] : null), canLink ? 'all' : 'none');
+  /** Attach an EXISTING login (e.g. a teacher who is also a parent) instead of creating a second account. */
+  const linkExisting = async () => {
+    const u = users.data.find((x) => x.id === pick);
+    if (!linkAcc || !u) return;
+    try {
+      await attachParentUid(linkAcc, u.id);
+      await patchDoc(C.users, u.id, { roles: [...new Set([...rolesOf(u), 'parent' as Role])], parentId: linkAcc.id });
+      void audit('account.link_parent', `users/${u.id}`, `${u.email} ↔ parents/${linkAcc.id}; +parent role`);
+      toast.success(`${u.displayName} now has a Parent workspace for ${linkAcc.firstName}'s children.`);
+      setLinkAcc(null); setPick('');
+    } catch (e) { toast.error(errorMessage(e)); }
+  };
   const config: CrudConfig<WithId<Parent> & Record<string, unknown>> = {
     collection: C.parents, singular: 'Parent', plural: 'Parents / guardians', description: 'One parent can be linked to many children.', auditActions: true, canCreate: write, canEdit: write, canDelete: false,
     fields: [
@@ -165,11 +184,14 @@ export function ParentsPage() {
     ],
     searchKeys: ['firstName', 'lastName', 'email', 'phone'], sort: byName,
     beforeSave: (p, e) => (e ? p : { ...p, studentIds: [], userUid: '' }),
-    rowActions: (r) => (write && !r.userUid ? <Button size="icon" variant="ghost" aria-label="Create parent login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button> : null),
+    rowActions: (r) => (write && !r.userUid ? <><Button size="icon" variant="ghost" aria-label="Create parent login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>{canLink && <Button size="icon" variant="ghost" aria-label="Link an existing login" onClick={() => { setLinkAcc(r); setPick(''); }}><UserPlus className="h-4 w-4" /></Button>}</> : null),
   };
   return (
     <>
       <CrudPage config={config} />
+      <Dialog open={!!linkAcc} onClose={() => setLinkAcc(null)} title="Link an existing login" description="For someone who already has an account (e.g. a teacher who is also a parent). No second account is created." size="sm" footer={<><Button variant="outline" onClick={() => setLinkAcc(null)}>Cancel</Button><Button disabled={!pick} onClick={() => void linkExisting()}>Link and add Parent role</Button></>}>
+        <Field label="Person">{(a) => <Select {...a} value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Select…</option>{users.data.filter((u) => u.status === 'active').map((u) => <option key={u.id} value={u.id}>{u.displayName} — {rolesOf(u).map((r) => ROLE_LABELS[r]).join(', ')}</option>)}</Select>}</Field>
+      </Dialog>
       {account && <AccountDialog open onClose={() => setAccount(null)} roles={['parent']} defaults={{ name: `${account.firstName} ${account.lastName}`, email: account.email, role: 'parent', parentId: account.id }} onCreated={(uid) => attachParentUid(account, uid)} />}
     </>
   );
