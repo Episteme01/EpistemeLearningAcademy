@@ -75,6 +75,7 @@ export const NAV: NavItem[] = [
   { label: 'Courses', to: '/app/lms/courses', icon: BookOpen, platform: 'lms', roles: ACADEMIC, group: 'Teach' },
   { label: 'Assignments', to: '/app/lms/assignments', icon: ClipboardList, platform: 'lms', roles: [...ACADEMIC, 'student'], group: 'Teach' },
   { label: 'Quizzes', to: '/app/lms/quizzes', icon: FileQuestion, platform: 'lms', roles: [...ACADEMIC, 'student'], group: 'Teach' },
+  { label: 'Timetable', to: '/app/schedule', icon: CalendarDays, platform: 'lms', roles: ['super_admin', 'director', 'principal', 'admin', 'teacher', 'student', 'parent'], group: 'Teach' },
   { label: 'Live classes', to: '/app/lms/live', icon: Video, platform: 'lms', roles: [...ACADEMIC, 'student', 'parent'], group: 'Teach' },
   { label: 'Certificates', to: '/app/lms/certificates', icon: Award, platform: 'lms', roles: [...ACADEMIC, 'student', 'parent'], group: 'Teach' },
   { label: 'Course catalogue', to: '/app/lms/catalogue', icon: Library, platform: 'lms', roles: ['student'], group: 'Learn' },

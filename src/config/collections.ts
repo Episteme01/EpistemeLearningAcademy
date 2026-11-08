@@ -42,6 +42,11 @@ export const C = {
   quizKeys: 'quizKeys',
   quizAttempts: 'quizAttempts',
   liveClasses: 'liveClasses',
+  // Timetable + live classes (Phase 2)
+  timetableSeries: 'timetableSeries',
+  sessions: 'sessions',
+  sessionLinks: 'sessionLinks',
+  sessionAccess: 'sessionAccess',
   certificates: 'certificates',
   // CBT
   questions: 'questions',
