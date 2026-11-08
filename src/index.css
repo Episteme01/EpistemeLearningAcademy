@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Poppins", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-forest-50: #eef5f1;
+  --color-forest-100: #d8e8df;
+  --color-forest-200: #b2d1c1;
+  --color-forest-300: #7fb099;
+  --color-forest-400: #408267;
+  --color-forest-500: #1c5f47;
+  --color-forest-600: #0f4a38;
+  --color-forest-700: #0b3d2e;
+  --color-forest-800: #082e23;
+  --color-forest-900: #051f18;
+
+  --color-gold-50: #fbf7ec;
+  --color-gold-100: #f5ecd3;
+  --color-gold-200: #ebd9a8;
+  --color-gold-300: #dec27f;
+  --color-gold-400: #c8a45a;
+  --color-gold-500: #b08e47;
+  --color-gold-600: #8f7236;
+
+  --color-cream: #faf9f5;
+  --color-ink: #202923;
+  --color-muted: #737c75;
+  --color-line: #e6e3d9;
+
+  --color-danger: #b42318;
+  --color-danger-bg: #fdecea;
+  --color-warn: #8a5a00;
+  --color-warn-bg: #fff4d6;
+  --color-ok: #0b6b3a;
+  --color-ok-bg: #e4f4ea;
+  --color-info: #1d4f91;
+  --color-info-bg: #e7eefa;
+
+  --shadow-card: 0 1px 2px rgb(32 41 35 / 0.05), 0 1px 1px rgb(32 41 35 / 0.03);
+  --shadow-pop: 0 10px 30px -8px rgb(11 61 46 / 0.25);
+}
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-heading); letter-spacing: -0.01em; color: var(--color-forest-700); line-height: 1.2; }
+  :focus-visible { outline: 2px solid var(--color-gold-400); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: var(--color-gold-200); }
+  button, [role="button"], a { -webkit-tap-highlight-color: transparent; }
+  dialog::backdrop { background: rgb(5 31 24 / 0.55); backdrop-filter: blur(2px); }
+}
+
+@layer components {
+  /* Rich text rendering (CMS content) */
+  .prose-ela { color: var(--color-ink); line-height: 1.75; max-width: 70ch; }
+  .prose-ela h1, .prose-ela h2, .prose-ela h3, .prose-ela h4 { margin: 1.6em 0 0.5em; }
+  .prose-ela h2 { font-size: 1.5rem; } .prose-ela h3 { font-size: 1.2rem; } .prose-ela h4 { font-size: 1.05rem; }
+  .prose-ela p { margin: 0.9em 0; }
+  .prose-ela ul { list-style: disc; padding-left: 1.4em; margin: 0.9em 0; }
+  .prose-ela ol { list-style: decimal; padding-left: 1.4em; margin: 0.9em 0; }
+  .prose-ela li { margin: 0.3em 0; }
+  .prose-ela a { color: var(--color-forest-500); text-decoration: underline; text-underline-offset: 3px; }
+  .prose-ela blockquote { border-left: 3px solid var(--color-gold-400); padding-left: 1em; color: var(--color-muted); margin: 1.2em 0; }
+  .prose-ela img { border-radius: 6px; margin: 1.2em 0; max-width: 100%; height: auto; }
+  .prose-ela table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+  .prose-ela th, .prose-ela td { border: 1px solid var(--color-line); padding: 0.5em 0.7em; text-align: left; }
+}
+
+/* Print: report cards, receipts, attendance reports */
+@media print {
+  body { background: #fff; font-size: 12px; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-area { box-shadow: none !important; border: none !important; }
+  @page { size: A4; margin: 14mm; }
+}
+.print-only { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
