@@ -248,23 +248,156 @@ export function LiveClassesPage() {
   return <CrudPage config={config} />;
 }
 
+
 /* -------------------------------------------------------------- certificates */
 export function CertificatesPage() {
   const { role, uid, profile } = useAuth();
   const toast = useToast();
   const staff = can(role, 'lms.manage');
-  const enr = useCollection<CourseEnrollment>(C.courseEnrollments, () => (staff ? [where('status', '==', 'completed')] : null), `${staff}`);
-  const certs = useCollection<{ code: string; courseTitle: string; studentName: string; issuedAt: unknown; uid: string }>(C.certificates, () => (staff ? [] : uid ? [role === 'parent' ? where('parentUids', 'array-contains', uid) : where('uid', '==', uid)] : null), `${role}${uid}`);
+  const enr = useCollection<CourseEnrollment>(
+    C.courseEnrollments,
+    () => (staff ? [where('status', '==', 'completed')] : null),
+    `${staff}`
+  );
+  const certs = useCollection<{
+    code: string;
+    courseTitle: string;
+    studentName: string;
+    issuedAt: unknown;
+    uid: string;
+  }>(
+    C.certificates,
+    () => (
+      staff
+        ? []
+        : uid
+          ? [
+              role === 'parent'
+                ? where('parentUids', 'array-contains', uid)
+                : where('uid', '==', uid)
+            ]
+          : null
+    ),
+    `${role}${uid}`
+  );
+
   const [view, setView] = useState<(typeof certs.data)[number] | null>(null);
-  const pending = enr.data.filter((e) => !certs.data.some((c) => c.uid === e.uid && c.courseTitle === e.courseTitle));
+
+  const pending = enr.data.filter(
+    (e) =>
+      !certs.data.some(
+        (c) => c.uid === e.uid && c.courseTitle === e.courseTitle
+      )
+  );
+
   return (
     <>
-      <PageHeader title="Certificates" description="Verifiable course certificates. Anyone can verify a code on the public website." />
-      {staff && pending.length > 0 && <Card className="mb-5"><CardHeader title={`${pending.length} completed course(s) awaiting a certificate`} /><ul className="divide-y divide-line">{pending.map((e) => <li key={e.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm"><span>{e.studentName} — {e.courseTitle}</span><Button size="sm" variant="gold" onClick={() => { void issueCertificate(e, profile?.displayName ?? '').then((c) => toast.success(`Issued ${c}`)).catch((x) => toast.error(errorMessage(x))); }}>Issue</Button></li>)}</ul></Card>}
-      {certs.loading ? <Spinner /> : certs.data.length === 0 ? <Card><EmptyState title="No certificates yet" icon={<Award className="h-6 w-6" />} /></Card> : <div className="grid gap-4 md:grid-cols-2">{certs.data.map((c) => <Card key={c.id}><CardBody className="flex items-center justify-between gap-3"><div><p className="font-medium">{c.courseTitle}</p><p className="text-xs text-muted">{c.studentName} · {fmtDate(c.issuedAt)} · {c.code}</p></div><Button size="sm" variant="outline" onClick={() => setView(c)}>View</Button></CardBody></Card>)}</div>}
-      <Dialog open={!!view} onClose={() => setView(null)} title="Certificate" size="lg" footer={<Button onClick={() => window.print()}><Printer className="h-4 w-4" /> Print / Save PDF</Button>}>
-        {view && <div className="print-area border-8 border-double border-gold-400 p-8 text-center"><img src={BRAND.logo} alt="" className="mx-auto h-20" /><p className="mt-3 font-heading text-sm uppercase tracking-[0.3em] text-gold-600">Certificate of completion</p><p className="mt-6 text-sm">This certifies that</p><p className="font-heading text-3xl font-semibold text-forest-700">{view.studentName}</p><p className="mt-2 text-sm">has successfully completed</p><p className="font-heading text-xl font-semibold">{view.courseTitle}</p>
-          <p className="mt-6 text-xs text-muted">Issued {fmtDate(view.issuedAt)} · {BRAND.name}</p><p className="mt-1 text-xs">Verify: {SITE_URL}/verify/{view.code}</p><p className="font-mono text-sm">{view.code}</p></div>}
+      <PageHeader
+        title="Certificates"
+        description="Verifiable course certificates. Anyone can verify a code on the public website."
+      />
+
+      {staff && pending.length > 0 && (
+        <Card className="mb-5">
+          <CardHeader
+            title={`${pending.length} completed course(s) awaiting a certificate`}
+          />
+          <ul className="divide-y divide-line">
+            {pending.map((e) => (
+              <li
+                key={`${e.uid}-${e.courseTitle}`}
+                className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+              >
+                <span>
+                  {e.studentName} — {e.courseTitle}
+                </span>
+                <Button
+                  size="sm"
+                  variant="gold"
+                  onClick={() => {
+                    void issueCertificate(
+                      e,
+                      profile?.displayName ?? ''
+                    )
+                      .then((c) => toast.success(`Issued ${c}`))
+                      .catch((x) => toast.error(errorMessage(x)));
+                  }}
+                >
+                  Issue
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {certs.loading ? (
+        <Spinner />
+      ) : certs.data.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No certificates yet"
+            icon={<Award className="h-6 w-6" />}
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {certs.data.map((c) => (
+            <Card key={c.code}>
+              <CardBody className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{c.courseTitle}</p>
+                  <p className="text-xs text-muted">
+                    {c.studentName} · {fmtDate(c.issuedAt)} · {c.code}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setView(c)}
+                >
+                  View
+                </Button>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog
+        open={!!view}
+        onClose={() => setView(null)}
+        title="Certificate"
+        size="lg"
+        footer={
+          <Button onClick={() => window.print()}>
+            <Printer className="h-4 w-4" /> Print / Save PDF
+          </Button>
+        }
+      >
+        {view && (
+          <div className="print-area border-8 border-double border-gold-400 p-8 text-center">
+            <img src={BRAND.logo} alt="" className="mx-auto h-20" />
+            <p className="mt-3 font-heading text-sm uppercase tracking-[0.3em] text-gold-600">
+              Certificate of completion
+            </p>
+            <p className="mt-6 text-sm">This certifies that</p>
+            <p className="font-heading text-3xl font-semibold text-forest-700">
+              {view.studentName}
+            </p>
+            <p className="mt-2 text-sm">has successfully completed</p>
+            <p className="font-heading text-xl font-semibold">
+              {view.courseTitle}
+            </p>
+            <p className="mt-6 text-xs text-muted">
+              Issued {fmtDate(view.issuedAt)} · {BRAND.name}
+            </p>
+            <p className="mt-1 text-xs">
+              Verify: {SITE_URL}/verify/{view.code}
+            </p>
+            <p className="font-mono text-sm">{view.code}</p>
+          </div>
+        )}
       </Dialog>
     </>
   );
@@ -272,27 +405,182 @@ export function CertificatesPage() {
 
 export function ProgressPage() {
   const { uid } = useAuth();
-  const { data, loading } = useCollection<CourseEnrollment>(C.courseEnrollments, () => (uid ? [where('parentUids', 'array-contains', uid)] : null), uid ?? '');
-  const by = useMemo(() => { const m = new Map<string, CourseEnrollment[]>(); data.forEach((e) => m.set(e.studentName, [...(m.get(e.studentName) ?? []), e])); return [...m.entries()]; }, [data]);
-  return (<><PageHeader title="Learning progress" description="Read-only view of your children’s courses." />{loading ? <Spinner /> : by.length === 0 ? <Card><EmptyState title="No course activity yet" /></Card> : by.map(([n, list]) => <Card key={n} className="mb-4"><CardHeader title={n} /><ul className="divide-y divide-line">{list.map((e) => <li key={e.id} className="p-4"><div className="flex justify-between text-sm"><span>{e.courseTitle}</span><span>{e.progressPct}%</span></div><Progress className="mt-2" value={e.progressPct} /></li>)}</ul></Card>)}</>);
+
+  const { data, loading } = useCollection<CourseEnrollment>(
+    C.courseEnrollments,
+    () => (
+      uid ? [where('parentUids', 'array-contains', uid)] : null
+    ),
+    uid ?? ''
+  );
+
+  const by = useMemo(() => {
+    const m = new Map<string, CourseEnrollment[]>();
+
+    data.forEach((e) =>
+      m.set(e.studentName, [
+        ...(m.get(e.studentName) ?? []),
+        e
+      ])
+    );
+
+    return [...m.entries()];
+  }, [data]);
+
+  return (
+    <>
+      <PageHeader
+        title="Learning progress"
+        description="Read-only view of your children’s courses."
+      />
+
+      {loading ? (
+        <Spinner />
+      ) : by.length === 0 ? (
+        <Card>
+          <EmptyState title="No course activity yet" />
+        </Card>
+      ) : (
+        by.map(([n, list]) => (
+          <Card key={n} className="mb-4">
+            <CardHeader title={n} />
+            <ul className="divide-y divide-line">
+              {list.map((e) => (
+                <li
+                  key={`${e.uid}-${e.courseTitle}`}
+                  className="p-4"
+                >
+                  <div className="flex justify-between text-sm">
+                    <span>{e.courseTitle}</span>
+                    <span>{e.progressPct}%</span>
+                  </div>
+                  <Progress
+                    className="mt-2"
+                    value={e.progressPct}
+                  />
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))
+      )}
+    </>
+  );
 }
 
 export function LmsOverview() {
   const { role, uid } = useAuth();
+
   const staff = can(role, 'lms.manage') || role === 'director';
-  const courses = useCollection<Course>(C.courses, () => (staff ? [] : null), `${staff}`);
-  const enr = useCollection<CourseEnrollment>(C.courseEnrollments, () => (staff ? [] : uid ? [role === 'parent' ? where('parentUids', 'array-contains', uid) : where('uid', '==', uid)] : null), `${role}${uid}`);
-  const live = useCollection<LiveClass>(C.liveClasses, () => [], 'all');
-  const upcoming = live.data.filter((l) => (toDate(l.endsAt)?.getTime() ?? 0) > Date.now()).sort((a, b) => (toDate(a.startsAt)?.getTime() ?? 0) - (toDate(b.startsAt)?.getTime() ?? 0));
-  const avg = enr.data.length ? Math.round(enr.data.reduce((s, e) => s + e.progressPct, 0) / enr.data.length) : 0;
+
+  const courses = useCollection<Course>(
+    C.courses,
+    () => (staff ? [] : null),
+    `${staff}`
+  );
+
+  const enr = useCollection<CourseEnrollment>(
+    C.courseEnrollments,
+    () => (
+      staff
+        ? []
+        : uid
+          ? [
+              role === 'parent'
+                ? where('parentUids', 'array-contains', uid)
+                : where('uid', '==', uid)
+            ]
+          : null
+    ),
+    `${role}${uid}`
+  );
+
+  const live = useCollection<LiveClass>(
+    C.liveClasses,
+    () => [],
+    'all'
+  );
+
+  const upcoming = live.data
+    .filter(
+      (l) => (toDate(l.endsAt)?.getTime() ?? 0) > Date.now()
+    )
+    .sort(
+      (a, b) =>
+        (toDate(a.startsAt)?.getTime() ?? 0) -
+        (toDate(b.startsAt)?.getTime() ?? 0)
+    );
+
+  const avg = enr.data.length
+    ? Math.round(
+        enr.data.reduce((s, e) => s + e.progressPct, 0) /
+          enr.data.length
+      )
+    : 0;
+
   return (
     <>
       <PageHeader title="Learning overview" />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {staff && <StatCard label="Courses" value={courses.data.length} hint={`${courses.data.filter((c) => c.status === 'published').length} published`} />}
-        <StatCard label="Enrolments" value={enr.data.length} tone="gold" /><StatCard label="Average progress" value={`${avg}%`} /><StatCard label="Upcoming live classes" value={upcoming.length} />
+        {staff && (
+          <StatCard
+            label="Courses"
+            value={courses.data.length}
+            hint={`${courses.data.filter((c) => c.status === 'published').length} published`}
+          />
+        )}
+
+        <StatCard
+          label="Enrolments"
+          value={enr.data.length}
+          tone="gold"
+        />
+
+        <StatCard
+          label="Average progress"
+          value={`${avg}%`}
+        />
+
+        <StatCard
+          label="Upcoming live classes"
+          value={upcoming.length}
+        />
       </div>
-      <Card className="mt-6"><CardHeader title="Next live classes" />{upcoming.length === 0 ? <EmptyState title="Nothing scheduled" /> : <ul className="divide-y divide-line">{upcoming.slice(0, 5).map((l) => <li key={l.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm"><span><span className="font-medium">{l.title}</span><span className="block text-xs text-muted">{fmtDate(l.startsAt, true)}</span></span><a href={l.meetingUrl} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="outline">Join</Button></a></li>)}</ul>}</Card>
+
+      <Card className="mt-6">
+        <CardHeader title="Next live classes" />
+
+        {upcoming.length === 0 ? (
+          <EmptyState title="Nothing scheduled" />
+        ) : (
+          <ul className="divide-y divide-line">
+            {upcoming.slice(0, 5).map((l) => (
+              <li
+                key={l.id}
+                className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+              >
+                <span>
+                  <span className="font-medium">{l.title}</span>
+                  <span className="block text-xs text-muted">
+                    {fmtDate(l.startsAt, true)}
+                  </span>
+                </span>
+
+                <a
+                  href={l.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button size="sm" variant="outline">
+                    Join
+                  </Button>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </>
   );
 }
