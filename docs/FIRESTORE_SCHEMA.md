@@ -12,3 +12,5 @@ Names are defined once in `src/config/collections.ts`; field shapes in `src/type
 Parent/student access uses denormalised `parentUids` / `studentUid` fields so rules can prove list queries. If a parent is linked after records were written, re-save those records (or re-link) to refresh the field.
 
 No composite indexes are required by the queries as written; if the console reports one missing, follow its link and add it to `firebase/firestore.indexes.json`.
+
+**Timetable (Phase 2):** `timetableSeries`, `sessions` (one per occurrence; no meeting URL), `sessionLinks/{sessionId}` (secret, window-gated), `sessionAccess` (append-only link views/clicks).
