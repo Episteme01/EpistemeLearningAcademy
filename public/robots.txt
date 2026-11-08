@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
-Disallow: /Episteme-Learning-Academy/app/
-Disallow: /Episteme-Learning-Academy/login
+Disallow: /app/
+Disallow: /login
 
-Sitemap: https://episteme01.github.io/Episteme-Learning-Academy/sitemap.xml
