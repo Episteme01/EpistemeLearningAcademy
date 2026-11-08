@@ -4,11 +4,11 @@ import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
 
 // GitHub Pages serves a project site from /<repository-name>/.
-// The repository is "Episteme-Learning-Academy" (https://episteme01.github.io/Episteme-Learning-Academy).
-// Override with VITE_BASE_PATH (e.g. "/" for a custom domain or user site).
+// The deploy workflow computes VITE_BASE_PATH from the repository name automatically
+// ("/" for a <user>.github.io repo, "/<repo>/" otherwise). Set it yourself for a custom domain ("/").
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const base = env.VITE_BASE_PATH || '/Episteme-Learning-Academy/';
+  const base = env.VITE_BASE_PATH || '/';
   return {
     base,
     plugins: [react(), tailwindcss()],
