@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Cloud Storage for Firebase rules. NOTE: new Firebase projects may require the
+// Blaze (pay-as-you-go) plan to use Cloud Storage. The app works without it
+// (set VITE_ENABLE_STORAGE=false and use image URLs / bundled /images files).
+//
+// Roles are read from Firestore users/{uid}.role.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function profile() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
+    function role() { return profile().role; }
+    function active() { return signedIn() && profile().status == 'active'; }
+    function inRoles(rs) { return active() && role() in rs; }
+    function isImage() { return request.resource.contentType.matches('image/(jpeg|png|webp|gif)'); }
+    function isDoc() {
+      return request.resource.contentType.matches('application/pdf')
+          || request.resource.contentType.matches('application/(msword|vnd.openxmlformats-officedocument.*|vnd.ms-powerpoint|vnd.ms-excel)')
+          || request.resource.contentType.matches('text/plain');
+    }
+
+    // Website media library (CMS)
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if inRoles(['super_admin', 'admin', 'cms_editor', 'cms_author'])
+                   && request.resource.size < 8 * 1024 * 1024 && (isImage() || isDoc());
+      allow delete: if inRoles(['super_admin', 'admin', 'cms_editor']);
+    }
+    // Student passport photographs
+    match /students/{studentId}/{allPaths=**} {
+      allow read: if inRoles(['super_admin', 'director', 'principal', 'admin', 'admissions', 'finance', 'teacher']);
+      allow write: if inRoles(['super_admin', 'admin', 'principal', 'admissions'])
+                   && request.resource.size < 2 * 1024 * 1024 && isImage();
+    }
+    // Course thumbnails, lesson videos/PDFs/attachments
+    match /lms/{courseId}/{allPaths=**} {
+      allow read: if active();
+      allow write: if inRoles(['super_admin', 'admin', 'principal', 'teacher'])
+                   && request.resource.size < 50 * 1024 * 1024 && (isImage() || isDoc() || request.resource.contentType.matches('video/.*'));
+    }
+    // Assignment submissions: owner + academic staff
+    match /submissions/{uid}/{allPaths=**} {
+      allow read: if signedIn() && (request.auth.uid == uid || inRoles(['super_admin', 'admin', 'principal', 'teacher']));
+      allow write: if signedIn() && request.auth.uid == uid && active()
+                   && request.resource.size < 10 * 1024 * 1024 && (isImage() || isDoc());
+    }
+    // CBT question images
+    match /cbt/{allPaths=**} {
+      allow read: if active();
+      allow write: if inRoles(['super_admin', 'admin', 'principal', 'teacher'])
+                   && request.resource.size < 3 * 1024 * 1024 && isImage();
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

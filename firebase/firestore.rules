@@ -1,0 +1,465 @@
+rules_version = '2';
+
+// =============================================================================
+// Episteme Learning Academy — Cloud Firestore Security Rules
+//
+// Authorization model
+//   * Every signed-in person has a profile document  users/{uid}  with `role` and
+//     `status`. Rules read that document (one cached get() per request).
+//   * Users can NEVER write their own role/status (only admin tiers can).
+//   * Parents and students are linked to records through denormalised arrays/fields
+//     (`parentUids`, `studentUid`) that are written by staff only.
+//   * Anything not matched below is denied.
+//
+// Roles: super_admin, director, principal, admin, admissions, finance, teacher,
+//        cms_editor, cms_author, parent, student
+//
+// Keep this file in sync with src/config/permissions.ts (documented in docs/SECURITY.md).
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function profilePath(u) { return /databases/$(database)/documents/users/$(u); }
+    function hasProfile() { return signedIn() && exists(profilePath(uid())); }
+    function me() { return get(profilePath(uid())).data; }
+    function active() { return hasProfile() && me().status == 'active'; }
+    function inRoles(rs) { return active() && me().role in rs; }
+    function isRole(r) { return active() && me().role == r; }
+
+    function isSuper()          { return isRole('super_admin'); }
+    function isAdminTier()      { return inRoles(['super_admin', 'admin']); }
+    function isLeadership()     { return inRoles(['super_admin', 'director', 'principal', 'admin']); }
+    function isAcademicLeader() { return inRoles(['super_admin', 'principal', 'admin']); }
+    function isAcademicStaff()  { return inRoles(['super_admin', 'principal', 'admin', 'teacher']); }
+    function isEmsStaff()       { return inRoles(['super_admin', 'director', 'principal', 'admin', 'admissions', 'finance', 'teacher']); }
+    function isFinanceStaff()   { return inRoles(['super_admin', 'admin', 'finance']); }
+    function isCms()            { return inRoles(['super_admin', 'admin', 'cms_editor', 'cms_author']); }
+    function isCmsPublisher()   { return inRoles(['super_admin', 'admin', 'cms_editor']); }
+    function isAnyStaff() {
+      return inRoles(['super_admin', 'director', 'principal', 'admin', 'admissions', 'finance', 'teacher', 'cms_editor', 'cms_author']);
+    }
+
+    // Direct field access (no .get defaults) so that Firestore can prove list
+    // queries such as where('parentUids','array-contains',uid) satisfy the rule.
+    function isStudentOf(data) { return signedIn() && data.studentUid == uid(); }
+    function isParentOf(data)  { return signedIn() && (uid() in data.parentUids); }
+    function isOwnerOf(data)   { return signedIn() && data.uid == uid(); }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function str(f, max) { return f is string && f.size() <= max; }
+
+    // ------------------------------------------------------------------ users
+    match /users/{userId} {
+      allow get: if signedIn() && (userId == uid() || isAnyStaff());
+      allow list: if isAnyStaff();
+
+      // Admin tiers create accounts. Only a super admin can mint admin/super roles.
+      allow create: if (isSuper() ||
+                        (isRole('admin') && request.resource.data.role in
+                          ['director', 'principal', 'admissions', 'finance', 'teacher', 'cms_editor', 'cms_author', 'parent', 'student']) ||
+                        (isRole('admissions') && request.resource.data.role in ['parent', 'student']));
+
+      allow update: if isSuper()
+                    || (isRole('admin') && resource.data.role != 'super_admin' && resource.data.role != 'admin'
+                        && request.resource.data.role != 'super_admin' && request.resource.data.role != 'admin')
+                    || (signedIn() && userId == uid() && active()
+                        && onlyChanges(['displayName', 'phone', 'photoUrl', 'updatedAt']));
+      allow delete: if isSuper();
+    }
+
+    // ---------------------------------------------------- public CMS content
+    match /pages/{id} {
+      allow read: if resource.data.status == 'published' || isCms();
+      allow create: if isCmsPublisher()
+                    || (isRole('cms_author') && request.resource.data.status in ['draft', 'review']);
+      allow update: if isCmsPublisher()
+                    || (isRole('cms_author') && resource.data.status != 'published'
+                        && request.resource.data.status in ['draft', 'review']);
+      allow delete: if isCmsPublisher();
+      match /revisions/{rid} {
+        allow read, create: if isCms();
+        allow delete: if isCmsPublisher();
+      }
+    }
+    match /posts/{id} {
+      allow read: if resource.data.status == 'published' || isCms();
+      allow create: if isCmsPublisher()
+                    || (isRole('cms_author') && request.resource.data.status in ['draft', 'review']);
+      allow update: if isCmsPublisher()
+                    || (isRole('cms_author') && resource.data.status != 'published'
+                        && request.resource.data.status in ['draft', 'review']);
+      allow delete: if isCmsPublisher();
+      match /revisions/{rid} {
+        allow read, create: if isCms();
+        allow delete: if isCmsPublisher();
+      }
+    }
+    match /programmes/{id} {
+      allow read: if resource.data.status == 'published' || isCms();
+      allow write: if isCmsPublisher();
+    }
+    match /categories/{id} {
+      allow read: if true;
+      allow write: if isCmsPublisher();
+    }
+    match /announcements/{id} {
+      allow read: if (resource.data.status == 'published'
+                      && (resource.data.audience == 'public' || signedIn()))
+                  || isAnyStaff();
+      allow write: if isCmsPublisher() || isRole('principal');
+    }
+    match /media/{id} {
+      allow read: if true;
+      allow create, update: if isCms();
+      allow delete: if isCmsPublisher();
+    }
+    // Public configuration (site, home, navigation, social) + school settings.
+    // NEVER store secrets in `settings`: it is world-readable.
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if (id in ['site', 'home', 'navigation'] && isCmsPublisher()) || isAdminTier();
+    }
+
+    // Public forms: anyone may submit (validated); only staff can read.
+    match /contactEnquiries/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['name', 'email', 'phone', 'subject', 'message', 'status', 'createdAt'])
+                    && str(request.resource.data.name, 120) && request.resource.data.name.size() >= 2
+                    && str(request.resource.data.email, 160) && request.resource.data.email.matches('.+@.+\\..+')
+                    && str(request.resource.data.get('phone', ''), 40)
+                    && str(request.resource.data.get('subject', ''), 160)
+                    && str(request.resource.data.message, 4000) && request.resource.data.message.size() >= 5
+                    && request.resource.data.status == 'new'
+                    && request.resource.data.createdAt == request.time;
+      allow read, update: if inRoles(['super_admin', 'admin', 'principal', 'cms_editor']);
+      allow delete: if isAdminTier();
+    }
+    match /admissionEnquiries/{id} {
+      allow create: if request.resource.data.keys().hasOnly([
+                        'studentName', 'gender', 'dob', 'classApplied', 'programmes', 'mode', 'schedule',
+                        'parentName', 'parentEmail', 'parentPhone', 'whatsapp', 'address', 'notes',
+                        'consent', 'status', 'createdAt'])
+                    && str(request.resource.data.studentName, 160) && request.resource.data.studentName.size() >= 2
+                    && str(request.resource.data.parentName, 160)
+                    && str(request.resource.data.parentPhone, 40) && request.resource.data.parentPhone.size() >= 7
+                    && str(request.resource.data.get('parentEmail', ''), 160)
+                    && str(request.resource.data.get('notes', ''), 3000)
+                    && request.resource.data.get('programmes', []) is list
+                    && request.resource.data.get('programmes', []).size() <= 30
+                    && request.resource.data.consent == true
+                    && request.resource.data.status == 'new'
+                    && request.resource.data.createdAt == request.time;
+      allow read, update: if inRoles(['super_admin', 'admin', 'principal', 'director', 'admissions']);
+      allow delete: if isAdminTier();
+    }
+
+    // ------------------------------------------------------ EMS: people
+    match /students/{id} {
+      allow read: if isEmsStaff() || isStudentOf(resource.data) || isParentOf(resource.data);
+      allow create, update: if inRoles(['super_admin', 'admin', 'principal', 'admissions']);
+      allow delete: if isAdminTier();
+      match /history/{hid} {
+        allow read: if isEmsStaff();
+        allow create: if inRoles(['super_admin', 'admin', 'principal', 'admissions']);
+      }
+    }
+    match /parents/{id} {
+      allow read: if isEmsStaff() || (signedIn() && resource.data.get('userUid', '') == uid());
+      allow create, update: if inRoles(['super_admin', 'admin', 'principal', 'admissions']);
+      allow delete: if isAdminTier();
+    }
+    match /staff/{id} {
+      allow read: if isEmsStaff() || (signedIn() && resource.data.get('userUid', '') == uid());
+      allow write: if inRoles(['super_admin', 'admin', 'principal']);
+    }
+
+    // ----------------------------------------------- EMS: academic structure
+    match /classes/{id}       { allow read: if active(); allow write: if isAcademicLeader(); }
+    match /subjects/{id}      { allow read: if active(); allow write: if isAcademicLeader(); }
+    match /departments/{id}   { allow read: if active(); allow write: if isAcademicLeader(); }
+    match /academicSessions/{id} { allow read: if active(); allow write: if isAcademicLeader(); }
+    match /terms/{id}         { allow read: if active(); allow write: if isAcademicLeader(); }
+    match /calendarEvents/{id} { allow read: if active(); allow write: if isAcademicLeader(); }
+    match /gradingScales/{id} { allow read: if active(); allow write: if isAcademicLeader(); }
+    // id convention: {staffUid}_{classId}_{subjectId}  (used by results rules below)
+    match /teacherAssignments/{id} { allow read: if active(); allow write: if isAcademicLeader(); }
+
+    // --------------------------------------------------------- EMS: attendance
+    // id convention: {YYYY-MM-DD}_{studentId}
+    match /attendance/{id} {
+      allow read: if isEmsStaff() || isStudentOf(resource.data) || isParentOf(resource.data);
+      allow create, update: if isAcademicLeader()
+        || (isRole('teacher')
+            && get(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.get('classTeacherUid', '') == uid());
+      allow delete: if isAdminTier();
+    }
+
+    // ------------------------------------------------------------ EMS: finance
+    match /feeStructures/{id} {
+      allow read: if active();
+      allow write: if isFinanceStaff();
+    }
+    match /invoices/{id} {
+      allow read: if inRoles(['super_admin', 'director', 'principal', 'admin', 'finance'])
+                  || isStudentOf(resource.data) || isParentOf(resource.data);
+      allow create, update: if isFinanceStaff();
+      allow delete: if isSuper();
+    }
+    match /payments/{id} {
+      allow read: if inRoles(['super_admin', 'director', 'principal', 'admin', 'finance'])
+                  || isStudentOf(resource.data) || isParentOf(resource.data);
+      allow create: if isFinanceStaff();
+      allow update, delete: if isSuper();     // payments are an append-only ledger
+    }
+
+    // ------------------------------------------------------ EMS: results
+    // id convention: {termId}_{studentId}_{subjectId}
+    match /results/{id} {
+      allow read: if isAcademicStaff() || isRole('director')
+                  || ((isStudentOf(resource.data) || isParentOf(resource.data)) && resource.data.status == 'approved');
+
+      allow create: if isAcademicLeader()
+        || (isRole('teacher')
+            && request.resource.data.status in ['draft', 'submitted']
+            && exists(/databases/$(database)/documents/teacherAssignments/$(uid() + '_' + request.resource.data.classId + '_' + request.resource.data.subjectId)));
+
+      allow update: if isAcademicLeader()
+        || (isRole('teacher')
+            && resource.data.status != 'approved'
+            && request.resource.data.status in ['draft', 'submitted']
+            && exists(/databases/$(database)/documents/teacherAssignments/$(uid() + '_' + resource.data.classId + '_' + resource.data.subjectId)));
+      allow delete: if isAcademicLeader();
+    }
+    // id convention: {termId}_{studentId}
+    match /reportCards/{id} {
+      allow read: if isAcademicStaff() || isRole('director')
+                  || ((isStudentOf(resource.data) || isParentOf(resource.data)) && resource.data.status == 'approved');
+      allow create, update: if isAcademicLeader()
+        || (isRole('teacher') && resource.data.status != 'approved'
+            && onlyChanges(['teacherComment', 'updatedAt'])
+            && get(/databases/$(database)/documents/classes/$(resource.data.classId)).data.get('classTeacherUid', '') == uid());
+      allow delete: if isAcademicLeader();
+    }
+
+    // ------------------------------------------------------------------- LMS
+    function courseOf(cid) { return get(/databases/$(database)/documents/courses/$(cid)).data; }
+    function enrolled(cid) { return signedIn() && exists(/databases/$(database)/documents/courseEnrollments/$(cid + '_' + uid())); }
+    function myClassId()   { return me().get('classId', ''); }
+    // visibility: 'public' (anyone), 'students' (any signed-in user), 'restricted'
+    // (only enrolled learners; staff enrol a class/learners in bulk).
+    function canSeeCourse(c, cid) {
+      return c.status == 'published'
+        && (c.visibility == 'public' || (signedIn() && c.visibility == 'students') || enrolled(cid));
+    }
+    function ownsCourse(c) { return c.get('instructorUid', '') == uid(); }
+
+    match /courses/{id} {
+      allow read: if canSeeCourse(resource.data, id) || isAcademicStaff() || isRole('director');
+      allow create: if isAcademicLeader() || (isRole('teacher') && request.resource.data.instructorUid == uid());
+      allow update, delete: if isAcademicLeader() || (isRole('teacher') && ownsCourse(resource.data));
+    }
+    match /modules/{id} {
+      allow read: if isAcademicStaff() || enrolled(resource.data.courseId) || courseOf(resource.data.courseId).visibility == 'public';
+      allow write: if isAcademicLeader()
+                   || (isRole('teacher') && ownsCourse(courseOf(request.resource.data.courseId)));
+    }
+    match /lessons/{id} {
+      allow read: if isAcademicStaff() || enrolled(resource.data.courseId)
+                  || (resource.data.get('preview', false) == true && courseOf(resource.data.courseId).status == 'published');
+      allow write: if isAcademicLeader()
+                   || (isRole('teacher') && ownsCourse(courseOf(request.resource.data.courseId)));
+    }
+
+    // id convention: {courseId}_{uid}
+    match /courseEnrollments/{id} {
+      allow read: if isAcademicStaff() || isRole('director') || isOwnerOf(resource.data) || isParentOf(resource.data);
+      allow create: if isAcademicLeader() || isRole('teacher')
+        || (isRole('student') && request.resource.data.uid == uid()
+            && id == request.resource.data.courseId + '_' + uid()
+            && request.resource.data.status == 'active'
+            && courseOf(request.resource.data.courseId).status == 'published'
+            && courseOf(request.resource.data.courseId).get('enrollmentMode', 'open') == 'open');
+      allow update: if isAcademicStaff()
+        || (isOwnerOf(resource.data) && onlyChanges(['progressPct', 'completedLessons', 'totalLessons', 'status', 'completedAt', 'lastActivityAt', 'updatedAt']));
+      allow delete: if isAcademicLeader();
+    }
+    // id convention: {uid}_{lessonId}
+    match /lessonProgress/{id} {
+      allow read: if isAcademicStaff() || isOwnerOf(resource.data) || isParentOf(resource.data);
+      allow create: if isRole('student') && request.resource.data.uid == uid()
+                    && id == uid() + '_' + request.resource.data.lessonId;
+      allow update, delete: if isOwnerOf(resource.data) || isAcademicLeader();
+    }
+
+    match /assignments/{id} {
+      allow read: if isAcademicStaff()
+                  || (isRole('student') && ((resource.data.get('courseId', '') != '' && enrolled(resource.data.courseId))
+                                            || resource.data.get('classId', '') == myClassId()));
+      allow create: if isAcademicLeader() || (isRole('teacher') && request.resource.data.teacherUid == uid());
+      allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.teacherUid == uid());
+    }
+    // id convention: {assignmentId}_{uid}
+    match /submissions/{id} {
+      allow read: if isAcademicStaff() || isOwnerOf(resource.data) || isParentOf(resource.data);
+      allow create: if isRole('student') && request.resource.data.uid == uid()
+                    && id == request.resource.data.assignmentId + '_' + uid()
+                    && request.resource.data.status == 'submitted'
+                    && !('score' in request.resource.data);
+      allow update: if isAcademicStaff()
+        || (isOwnerOf(resource.data) && resource.data.status != 'graded'
+            && request.resource.data.status == 'submitted' && !('score' in request.resource.data));
+      allow delete: if isAcademicLeader();
+    }
+
+    // Formative quizzes (LMS). Answer keys are released only after an attempt exists.
+    // Scores here are self-computed by the learner's browser and are for practice only;
+    // use CBT for assessed, server-enforced examinations.
+    match /quizzes/{id} {
+      allow read: if isAcademicStaff()
+                  || (isRole('student') && ((resource.data.get('courseId', '') != '' && enrolled(resource.data.courseId))));
+      allow create: if isAcademicLeader() || (isRole('teacher') && request.resource.data.createdBy == uid());
+      allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.createdBy == uid());
+    }
+    match /quizKeys/{id} {
+      allow read: if isAcademicStaff()
+                  || (signedIn() && exists(/databases/$(database)/documents/quizAttempts/$(id + '_' + uid())));
+      allow write: if isAcademicStaff();
+    }
+    // id convention: {quizId}_{uid}
+    match /quizAttempts/{id} {
+      allow read: if isAcademicStaff() || isOwnerOf(resource.data) || isParentOf(resource.data);
+      allow create: if isRole('student') && request.resource.data.uid == uid()
+                    && id == request.resource.data.quizId + '_' + uid();
+      allow update: if isRole('student') && isOwnerOf(resource.data);
+    }
+    match /liveClasses/{id} {
+      allow read: if active();
+      allow write: if isAcademicStaff();
+    }
+    // Certificates are verifiable by code (document id) without signing in.
+    match /certificates/{code} {
+      allow get: if true;
+      allow list: if isAcademicStaff() || isOwnerOf(resource.data) || isParentOf(resource.data);
+      allow create: if isAcademicStaff();
+      allow update, delete: if isSuper();
+    }
+
+    // ------------------------------------------------------------------- CBT
+    match /questions/{id} {
+      allow read: if isAcademicStaff();
+      allow create: if isAcademicStaff() && request.resource.data.createdBy == uid();
+      allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.createdBy == uid());
+    }
+    match /questionKeys/{id} {
+      allow read, write: if isAcademicStaff();
+    }
+
+    function examOf(eid) { return get(/databases/$(database)/documents/exams/$(eid)).data; }
+    function eligible(ex) {
+      return isRole('student')
+        && (myClassId() in ex.get('classIds', []) || uid() in ex.get('studentUids', []));
+    }
+    function attemptPath(eid, key) { return /databases/$(database)/documents/attempts/$(eid + '_' + uid() + '_' + key); }
+    // Map attempt key -> previous attempt key (max 5 attempts)
+    function prevKey(key) { return {'2': '1', '3': '2', '4': '3', '5': '4'}[key]; }
+    function attemptNoMatches(no, key) {
+      return (no == 1 && key == '1') || (no == 2 && key == '2') || (no == 3 && key == '3')
+          || (no == 4 && key == '4') || (no == 5 && key == '5');
+    }
+
+    match /exams/{examId} {
+      allow read: if isAcademicStaff() || isRole('director')
+                  || (resource.data.status == 'published' && eligible(resource.data));
+      allow create: if isAcademicLeader() || (isRole('teacher') && request.resource.data.createdBy == uid());
+      allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.createdBy == uid());
+
+      // Question paper snapshot (NO answers). Readable by an eligible student only
+      // after they have a started attempt (created through the validated rule below).
+      match /paper/{qid} {
+        allow read: if isAcademicStaff()
+                    || (examOf(examId).status == 'published' && eligible(examOf(examId))
+                        && exists(attemptPath(examId, '1')));
+        allow write: if isAcademicStaff();
+      }
+      // Answer keys: staff only. Never readable by students.
+      match /keys/{qid} {
+        allow read, write: if isAcademicStaff();
+      }
+    }
+
+    // id convention: {examId}_{uid}_{attemptKey}   (attemptKey '1'..'5')
+    match /attempts/{attemptId} {
+      allow read: if isAcademicStaff() || isRole('director') || (isOwnerOf(resource.data) && isRole('student'));
+
+      // Starting an attempt is validated entirely by the server clock + exam rules.
+      allow create: if isRole('student')
+        && request.resource.data.uid == uid()
+        && request.resource.data.keys().hasOnly(['examId', 'uid', 'studentId', 'studentName', 'attemptNo', 'attemptKey',
+             'status', 'startedAt', 'questionIds', 'answers', 'flagged', 'autoSubmitted'])
+        && attemptId == request.resource.data.examId + '_' + uid() + '_' + request.resource.data.attemptKey
+        && attemptNoMatches(request.resource.data.attemptNo, request.resource.data.attemptKey)
+        && examOf(request.resource.data.examId).status == 'published'
+        && eligible(examOf(request.resource.data.examId))
+        && request.time >= examOf(request.resource.data.examId).startsAt
+        && request.time <= examOf(request.resource.data.examId).endsAt
+        && request.resource.data.attemptNo <= examOf(request.resource.data.examId).maxAttempts
+        && (request.resource.data.attemptNo == 1
+            || (exists(attemptPath(request.resource.data.examId, prevKey(request.resource.data.attemptKey)))
+                && get(attemptPath(request.resource.data.examId, prevKey(request.resource.data.attemptKey))).data.status != 'in_progress'))
+        && request.resource.data.status == 'in_progress'
+        && request.resource.data.startedAt == request.time
+        && request.resource.data.answers.size() == 0
+        && request.resource.data.questionIds.size() <= examOf(request.resource.data.examId).questionIds.size();
+
+      // Students may only save answers / flags / submit, and only before the
+      // server-computed deadline = startedAt (server time) + exam duration (+20s network grace for the automatic submission).
+      allow update: if (isRole('student') && isOwnerOf(resource.data)
+            && resource.data.status == 'in_progress'
+            && request.time <= resource.data.startedAt + duration.value(examOf(resource.data.examId).durationMinutes, 'm') + duration.value(20, 's')
+            && onlyChanges(['answers', 'flagged', 'status', 'submittedAt', 'autoSubmitted'])
+            && request.resource.data.status in ['in_progress', 'submitted']
+            && (request.resource.data.status == 'in_progress' || request.resource.data.submittedAt == request.time))
+        || isAcademicStaff();
+      allow delete: if isAdminTier();
+    }
+
+    match /cbtResults/{id} {
+      allow read: if isAcademicStaff() || isRole('director')
+                  || ((isOwnerOf(resource.data) || isParentOf(resource.data)) && resource.data.get('released', false) == true);
+      allow write: if isAcademicStaff();
+    }
+    match /examEvents/{id} {
+      allow create: if isRole('student') && request.resource.data.uid == uid()
+                    && request.resource.data.at == request.time
+                    && request.resource.data.keys().hasOnly(['attemptId', 'examId', 'uid', 'type', 'at', 'detail'])
+                    && request.resource.data.type in ['start', 'resume', 'submit', 'auto_submit', 'blur', 'focus'];
+      allow read: if isAcademicStaff() || isRole('director');
+    }
+
+    // Sequence counters for student/staff numbers, invoice and receipt numbers
+    match /counters/{id} {
+      allow read, write: if inRoles(['super_admin', 'admin', 'principal', 'admissions', 'finance']);
+    }
+
+    // ------------------------------------------------- Notifications and audit
+    match /notifications/{id} {
+      allow read: if signedIn() && resource.data.userUid == uid();
+      allow create: if isAnyStaff();
+      allow update: if signedIn() && resource.data.userUid == uid() && onlyChanges(['read']);
+      allow delete: if signedIn() && resource.data.userUid == uid();
+    }
+    match /auditLogs/{id} {
+      allow create: if isAnyStaff() && request.resource.data.actorUid == uid() && request.resource.data.at == request.time;
+      allow read: if inRoles(['super_admin', 'director']);
+      allow update, delete: if false;
+    }
+
+    // Default: deny everything else.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
