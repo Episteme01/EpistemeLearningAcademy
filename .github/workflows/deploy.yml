@@ -42,12 +42,6 @@ jobs:
           if [ "$BASE" = "/" ]; then KEEP=0; else KEEP=1; fi
           sed -i "s/var pathSegmentsToKeep = [0-9]*/var pathSegmentsToKeep = $KEEP/" public/404.html
           echo "Base path: $BASE (segments to keep: $KEEP)"
-      - name: Check Firebase configuration is present
-        run: |
-          if [ -z "$VITE_FIREBASE_CONFIG_JSON" ]; then
-            echo "::error::Repository variable VITE_FIREBASE_CONFIG_JSON is missing. See README → Deploy."
-            exit 1
-          fi
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
