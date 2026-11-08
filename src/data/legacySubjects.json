@@ -1,0 +1,297 @@
+[
+ {
+  "id": "math",
+  "title": "Mathematics",
+  "description": "Master numbers, algebra, and logical problem-solving.",
+  "lessons": [
+   {
+    "id": "fractions",
+    "title": "Understanding Fractions",
+    "content": "WHAT IS A FRACTION?\n\nA fraction represents a part of a whole.\n\nIt has two parts:\n- Numerator (top number)\n- Denominator (bottom number)\n\nExample:\n1/2 means 1 part out of 2 equal parts.\n\nTYPES OF FRACTIONS:\n1. Proper fraction (1/2)\n2. Improper fraction (5/3)\n3. Mixed number (1 1/2)\n\nADDING FRACTIONS:\nTo add fractions with the same denominator:\n1/4 + 2/4 = 3/4\n\nIf denominators are different:\nFind a common denominator first."
+   },
+   {
+    "id": "algebra",
+    "title": "Introduction to Algebra",
+    "content": "WHAT IS ALGEBRA?\n\nAlgebra uses letters to represent numbers.\n\nExample:\nx + 5 = 10\n\nTo find x:\nSubtract 5 from both sides.\n\nx = 5\n\nTERMS:\nVariable → a letter representing a number\nConstant → a fixed number\nExpression → combination of numbers and variables\n\nAlgebra helps us solve real-life problems."
+   },
+   {
+    "id": "percentages",
+    "title": "Understanding Percentages",
+    "content": "PERCENT means \"out of 100\".\n\n50% means 50 out of 100.\n\nTo find percentage:\n20% of 50\n\nStep 1:\n20/100 × 50\n\nStep 2:\n= 10\n\nSo 20% of 50 is 10."
+   }
+  ],
+  "quiz": [
+   {
+    "question": "What is 1/2 + 1/2?",
+    "options": [
+     "1",
+     "2",
+     "1/4",
+     "0"
+    ],
+    "answer": 0
+   },
+   {
+    "question": "If x = 5, what is 2x?",
+    "options": [
+     "10",
+     "7",
+     "5",
+     "2"
+    ],
+    "answer": 0
+   },
+   {
+    "question": "20% of 50 is?",
+    "options": [
+     "5",
+     "10",
+     "20",
+     "25"
+    ],
+    "answer": 1
+   }
+  ]
+ },
+ {
+  "id": "english",
+  "title": "English Language",
+  "description": "Master grammar, comprehension, writing, and effective communication.",
+  "lessons": [
+   {
+    "id": "nouns",
+    "title": "Understanding Nouns",
+    "content": "WHAT IS A NOUN?\n\nA noun is a naming word. It names a person, place, animal, or thing.\n\nExamples:\nPerson → Teacher, Ahmed\nPlace → School, Lagos\nAnimal → Lion, Goat\nThing → Book, Table\n\nTYPES OF NOUNS:\n\n1. Common Noun – general names (boy, city)\n2. Proper Noun – specific names (Nigeria, Aisha)\n3. Collective Noun – group names (team, class)\n4. Abstract Noun – ideas or feelings (love, honesty)\n\nEXERCISE:\nIdentify the nouns in this sentence:\n\"The boy carried a bag to school.\""
+   },
+   {
+    "id": "verbs",
+    "title": "Understanding Verbs",
+    "content": "WHAT IS A VERB?\n\nA verb is an action word.\n\nExamples:\nRun, eat, write, speak.\n\nTYPES OF VERBS:\n\n1. Action Verbs – show physical action (jump, read)\n2. Linking Verbs – connect subject to description (is, are, was)\n3. Helping Verbs – support main verbs (has, have, will)\n\nExample:\nShe is reading a book.\n\"is\" = helping verb\n\"reading\" = main verb\n\nVerbs show tense:\nPast → walked\nPresent → walk\nFuture → will walk"
+   },
+   {
+    "id": "tenses",
+    "title": "English Tenses",
+    "content": "TENSES show the time of an action.\n\n1. Present Tense:\nI eat rice.\n\n2. Past Tense:\nI ate rice.\n\n3. Future Tense:\nI will eat rice.\n\nPresent Continuous:\nI am eating rice.\n\nPast Continuous:\nI was eating rice.\n\nFuture Continuous:\nI will be eating rice.\n\nCorrect tense usage makes communication clear."
+   },
+   {
+    "id": "comprehension",
+    "title": "Reading Comprehension Skills",
+    "content": "Reading comprehension means understanding what you read.\n\nSTEPS:\n1. Read carefully\n2. Identify main idea\n3. Understand keywords\n4. Answer questions based on the passage\n\nMain Idea:\nThe most important point in a paragraph.\n\nSupporting Details:\nSentences that explain the main idea.\n\nGood readers ask:\nWho? What? When? Why? How?"
+   }
+  ],
+  "quiz": [
+   {
+    "question": "Which of the following is a proper noun?",
+    "options": [
+     "city",
+     "boy",
+     "Nigeria",
+     "school"
+    ],
+    "answer": 2
+   },
+   {
+    "question": "Which word is a verb?",
+    "options": [
+     "run",
+     "table",
+     "book",
+     "chair"
+    ],
+    "answer": 0
+   },
+   {
+    "question": "Past tense of 'eat' is?",
+    "options": [
+     "eats",
+     "ate",
+     "eating",
+     "will eat"
+    ],
+    "answer": 1
+   }
+  ]
+ },
+ {
+  "id": "science",
+  "title": "Basic Science",
+  "description": "Explore the natural world through observation, experiments, and reasoning.",
+  "lessons": [
+   {
+    "id": "matter",
+    "title": "States of Matter",
+    "content": "Matter is anything that has mass and occupies space.\n\nThere are three main states of matter:\n\n1. Solid\n- Has fixed shape\n- Has fixed volume\nExample: Stone, Book\n\n2. Liquid\n- Has fixed volume\n- Takes shape of container\nExample: Water, Milk\n\n3. Gas\n- No fixed shape\n- No fixed volume\nExample: Air, Oxygen\n\nMatter can change state:\nIce (solid) → Water (liquid) → Steam (gas)"
+   },
+   {
+    "id": "livingthings",
+    "title": "Living and Non-Living Things",
+    "content": "Living Things:\n- Grow\n- Breathe\n- Reproduce\n- Move\n- Respond to environment\n\nExamples:\nHuman beings, animals, plants\n\nNon-Living Things:\nDo not grow or reproduce.\nExamples:\nStone, chair, car\n\nPlants are living things because they grow and reproduce."
+   },
+   {
+    "id": "solar",
+    "title": "The Solar System",
+    "content": "The Solar System consists of the Sun and the planets.\n\nThe eight planets are:\nMercury\nVenus\nEarth\nMars\nJupiter\nSaturn\nUranus\nNeptune\n\nThe Sun is a star.\nEarth rotates on its axis and revolves around the Sun."
+   },
+   {
+    "id": "energy",
+    "title": "Forms of Energy",
+    "content": "Energy is the ability to do work.\n\nTypes of energy:\n1. Heat Energy\n2. Light Energy\n3. Sound Energy\n4. Electrical Energy\n5. Mechanical Energy\n\nEnergy can change from one form to another.\nExample:\nElectrical energy → Light energy (bulb)"
+   }
+  ],
+  "quiz": [
+   {
+    "question": "Which state of matter has no fixed shape?",
+    "options": [
+     "Solid",
+     "Liquid",
+     "Gas",
+     "Metal"
+    ],
+    "answer": 2
+   },
+   {
+    "question": "Which of the following is a living thing?",
+    "options": [
+     "Stone",
+     "Tree",
+     "Chair",
+     "Table"
+    ],
+    "answer": 1
+   },
+   {
+    "question": "How many planets are in the Solar System?",
+    "options": [
+     "7",
+     "8",
+     "9",
+     "10"
+    ],
+    "answer": 1
+   }
+  ]
+ },
+ {
+  "id": "ict",
+  "title": "ICT",
+  "description": "Learn about computers, digital literacy, software, and the world of technology.",
+  "lessons": [
+   {
+    "id": "computer-basics",
+    "title": "Introduction to Computers",
+    "content": "A computer is an electronic device that processes data and performs tasks based on instructions.\n\nMain Components:\n1. Input Devices – keyboard, mouse\n2. Output Devices – monitor, printer\n3. Storage – hard disk, SSD\n4. Processor (CPU) – brain of the computer\n5. Memory (RAM) – temporary storage for running programs\n\nUses:\n- Communication (emails, social media)\n- Education (research, e-learning)\n- Business (accounting, presentations)\n- Entertainment (games, videos)"
+   },
+   {
+    "id": "hardware",
+    "title": "Computer Hardware",
+    "content": "Hardware refers to the physical parts of a computer.\n\nTypes of Hardware:\n1. Central Processing Unit (CPU) – executes instructions\n2. Monitor – displays information\n3. Keyboard & Mouse – input data\n4. Storage Devices – HDD, SSD, USB drives\n5. Networking Devices – routers, modems\n\nTip:\nRegular maintenance keeps hardware working efficiently."
+   },
+   {
+    "id": "software",
+    "title": "Computer Software",
+    "content": "Software is a set of programs that tell the computer what to do.\n\nTypes:\n1. System Software – Operating systems (Windows, Linux, macOS)\n2. Application Software – Word processors, spreadsheets, browsers\n3. Utility Software – Antivirus, disk cleanup tools\n\nExample:\nMicrosoft Word is an application software used for typing documents."
+   },
+   {
+    "id": "internet",
+    "title": "Introduction to the Internet",
+    "content": "The Internet is a global network connecting millions of computers.\n\nUses:\n- Communication (emails, chat, video calls)\n- Education (research, e-learning)\n- Information (news, encyclopedias)\n- Social media (Facebook, Twitter)\n\nSafety Tips:\n- Never share personal info online\n- Use strong passwords\n- Avoid clicking unknown links"
+   },
+   {
+    "id": "digital-skills",
+    "title": "Basic Digital Skills",
+    "content": "Digital skills are essential for everyday life and work.\n\nSkills include:\n1. Typing efficiently\n2. Using word processors (Microsoft Word, Google Docs)\n3. Using spreadsheets (Excel, Google Sheets)\n4. Creating presentations (PowerPoint, Google Slides)\n5. Navigating the internet safely\n6. Using email for communication\n\nTip:\nPractice regularly to improve your digital fluency."
+   }
+  ],
+  "quiz": [
+   {
+    "question": "Which of these is an input device?",
+    "options": [
+     "Monitor",
+     "Printer",
+     "Keyboard",
+     "Speaker"
+    ],
+    "answer": 2
+   },
+   {
+    "question": "What is the CPU often called?",
+    "options": [
+     "Memory",
+     "Brain of the computer",
+     "Hard drive",
+     "Software"
+    ],
+    "answer": 1
+   },
+   {
+    "question": "Which software is used for typing documents?",
+    "options": [
+     "Excel",
+     "Word",
+     "Browser",
+     "Antivirus"
+    ],
+    "answer": 1
+   },
+   {
+    "question": "Which of the following is a safe internet practice?",
+    "options": [
+     "Share passwords online",
+     "Click unknown links",
+     "Use strong passwords",
+     "Send personal info to strangers"
+    ],
+    "answer": 2
+   },
+   {
+    "question": "What does RAM do?",
+    "options": [
+     "Stores data permanently",
+     "Processes instructions",
+     "Temporary storage for running programs",
+     "Displays output"
+    ],
+    "answer": 2
+   }
+  ]
+ },
+ {
+  "id": "general",
+  "title": "General Knowledge",
+  "description": "Expand your awareness about the world around you.",
+  "lessons": [
+   {
+    "id": "continents",
+    "title": "The Seven Continents",
+    "content": "The Earth is divided into seven continents:\n\n1. Africa\n2. Asia\n3. Europe\n4. North America\n5. South America\n6. Australia\n7. Antarctica\n\nAfrica is the second largest continent and home to Nigeria.\nAsia is the largest continent by population.\nAntarctica is the coldest continent."
+   },
+   {
+    "id": "solar",
+    "title": "The Solar System",
+    "content": "The Solar System consists of the Sun and the eight planets that orbit it.\n\nThe eight planets are:\nMercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune.\n\nThe Sun is a star that provides heat and light.\nEarth is the only planet known to support life."
+   }
+  ],
+  "quiz": [
+   {
+    "question": "How many continents are there?",
+    "options": [
+     "5",
+     "6",
+     "7",
+     "8"
+    ],
+    "answer": 2
+   },
+   {
+    "question": "Which planet do we live on?",
+    "options": [
+     "Mars",
+     "Earth",
+     "Venus",
+     "Jupiter"
+    ],
+    "answer": 1
+   }
+  ]
+ }
+]
