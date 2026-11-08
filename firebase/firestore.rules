@@ -353,8 +353,10 @@ service cloud.firestore {
                     && id == request.resource.data.quizId + '_' + uid();
       allow update: if isRole('student') && isOwnerOf(resource.data);
     }
+    // LEGACY. Old general-purpose live-class links were readable by every signed-in user.
+    // They are now staff-only; live classes live in the timetable (sessions + sessionLinks).
     match /liveClasses/{id} {
-      allow read: if active();
+      allow read: if isAcademicStaff();
       allow write: if isAcademicStaff();
     }
     // Certificates are verifiable by code (document id) without signing in.
@@ -463,6 +465,64 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------- Notifications and audit
+
+    // ------------------------------------------------ timetable + live classes
+    // sessions hold everything EXCEPT the meeting URL. `viewers` = teacher + learners + guardians.
+    function schedLeader()  { return inRoles(['super_admin', 'admin', 'principal']); }
+    function schedViewer()  { return inRoles(['super_admin', 'admin', 'principal', 'director']); }
+    function canSchedule()  { return inRoles(['super_admin', 'admin', 'principal', 'teacher']); }
+    function sess(id)       { return get(/databases/$(database)/documents/sessions/$(id)).data; }
+    function sessAfter(id)  { return getAfter(/databases/$(database)/documents/sessions/$(id)).data; }
+    function ownsSession(d) { return isRole('teacher') && d.teacherUid == uid(); }
+
+    match /timetableSeries/{id} {
+      allow read: if schedViewer() || (signedIn() && resource.data.teacherUid == uid());
+      allow create: if canSchedule() && request.resource.data.createdBy == uid()
+                    && (schedLeader() || request.resource.data.teacherUid == uid())
+                    && str(request.resource.data.title, 120);
+      allow update: if schedLeader() || (ownsSession(resource.data) && request.resource.data.teacherUid == uid());
+      allow delete: if isSuper();
+    }
+
+    match /sessions/{id} {
+      allow read: if schedViewer() || (signedIn() && uid() in resource.data.viewers);
+      allow create: if canSchedule() && request.resource.data.createdBy == uid()
+                    && (schedLeader() || request.resource.data.teacherUid == uid())
+                    && str(request.resource.data.title, 120)
+                    && request.resource.data.status == 'scheduled'
+                    && request.resource.data.viewers.size() <= 250;
+      allow update: if (schedLeader() || (ownsSession(resource.data) && request.resource.data.teacherUid == uid()))
+                    && request.resource.data.seriesId == resource.data.seriesId
+                    && request.resource.data.status in ['scheduled', 'cancelled', 'completed']
+                    && request.resource.data.viewers.size() <= 250;
+      allow delete: if isSuper();
+    }
+
+    // The secret. Audience members can read it only while the class is scheduled and
+    // inside [start - 15 min, end + 30 min], decided by the server clock (request.time).
+    match /sessionLinks/{id} {
+      allow read: if schedLeader()
+                  || (signedIn() && sess(id).teacherUid == uid())
+                  || (signedIn() && uid() in sess(id).viewers && sess(id).status == 'scheduled'
+                      && request.time >= sess(id).startAt - duration.value(15, 'm')
+                      && request.time <= sess(id).endAt + duration.value(30, 'm'));
+      allow create, update: if canSchedule() && (schedLeader() || sessAfter(id).teacherUid == uid())
+                            && request.resource.data.keys().hasOnly(['provider', 'meetingUrl', 'meetingId', 'passcode', 'updatedBy', 'updatedAt'])
+                            && str(request.resource.data.meetingUrl, 500) && request.resource.data.meetingUrl.matches('https://.*');
+      allow delete: if schedLeader();
+    }
+
+    // Access history (append-only). Link views/clicks are NOT attendance.
+    match /sessionAccess/{id} {
+      allow create: if signedIn() && request.resource.data.uid == uid() && request.resource.data.at == request.time
+                    && request.resource.data.keys().hasOnly(['sessionId', 'teacherUid', 'uid', 'name', 'role', 'action', 'at'])
+                    && request.resource.data.action in ['link_view', 'link_click']
+                    && request.resource.data.teacherUid == sess(request.resource.data.sessionId).teacherUid
+                    && (uid() in sess(request.resource.data.sessionId).viewers || schedLeader());
+      allow read: if schedLeader() || (signedIn() && resource.data.teacherUid == uid());
+      allow update, delete: if false;
+    }
+
     match /notifications/{id} {
       allow read: if signedIn() && resource.data.userUid == uid();
       allow create: if isAnyStaff();
