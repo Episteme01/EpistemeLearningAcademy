@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { where } from 'firebase/firestore';
 import { Award, ExternalLink, Printer, Trash2 } from 'lucide-react';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
@@ -9,6 +10,7 @@ import { Dialog, useToast } from '@/components/ui/overlay';
 import { Badge, EmptyState, Progress, Spinner, StatusBadge } from '@/components/ui/data';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
+import { useSessions } from '@/features/schedule/useSessions';
 import { C } from '@/config/collections';
 import { BRAND } from '@/config/brand';
 import { can } from '@/config/permissions';
@@ -19,7 +21,7 @@ import { notifyUsers } from '@/services/notifications';
 import { uploadFile, validateUpload } from '@/services/storage';
 import { gradeAttempt, type AnswerKey, type PaperQuestion } from '@/lib/cbt/grade';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
-import type { Assignment_, Course, CourseEnrollment, LiveClass, WithId } from './types';
+import type { Assignment_, Course, CourseEnrollment, WithId } from './types';
 
 type Row = Record<string, unknown> & { id: string };
 interface QuizQ { id: string; type: 'mcq' | 'tf' | 'short'; prompt: string; options: { id: string; text: string }[]; marks: number }
@@ -228,26 +230,6 @@ function StudentAssignments() {
     </>
   );
 }
-
-/* -------------------------------------------------------------- live classes */
-export function LiveClassesPage() {
-  const { role } = useAuth();
-  const manage = can(role, 'lms.manage');
-  const now = new Date();
-  const config: CrudConfig<WithId<LiveClass> & Row> = {
-    collection: C.liveClasses, singular: 'Live class', plural: 'Live classes', description: 'Scheduled online classes. Join links open Google Meet, Microsoft Teams or Zoom — video conferencing is provided by those services, not built in.', canCreate: manage, canEdit: manage, canDelete: manage, auditActions: true,
-    fields: [{ name: 'title', label: 'Title', type: 'text', required: true, span: 2 }, { name: 'startsAt', label: 'Starts', type: 'datetime', required: true }, { name: 'endsAt', label: 'Ends', type: 'datetime', required: true },
-      { name: 'provider', label: 'Provider', type: 'select', required: true, defaultValue: 'google_meet', options: [{ value: 'google_meet', label: 'Google Meet' }, { value: 'teams', label: 'Microsoft Teams' }, { value: 'zoom', label: 'Zoom' }, { value: 'other', label: 'Other' }] },
-      { name: 'meetingUrl', label: 'Meeting URL', type: 'url', required: true }, { name: 'courseId', label: 'Course (optional)', type: 'ref', ref: { collection: C.courses, label: (r) => String(r.title) } }, { name: 'description', label: 'Description', type: 'textarea' }],
-    beforeSave: (p) => { if (toDate(p.endsAt)! <= toDate(p.startsAt)!) throw new Error('End time must be after start time.'); return p; },
-    columns: [{ key: 't', header: 'Class', primary: true, cell: (r) => <div><p className="font-medium">{r.title}</p><p className="text-xs text-muted">{r.provider.replace('_', ' ')}</p></div> }, { key: 's', header: 'When', cell: (r) => fmtDate(r.startsAt, true) },
-      { key: 'u', header: 'State', cell: (r) => { const s = toDate(r.startsAt)!, e = toDate(r.endsAt)!; return <Badge tone={e < now ? 'neutral' : s <= now ? 'ok' : 'info'}>{e < now ? 'past' : s <= now ? 'live now' : 'upcoming'}</Badge>; } },
-      { key: 'j', header: 'Join', cell: (r) => (toDate(r.endsAt)! >= now ? <a href={r.meetingUrl} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="gold">Join</Button></a> : '—') }],
-    searchKeys: ['title'], sort: (a, b) => (toDate(b.startsAt)?.getTime() ?? 0) - (toDate(a.startsAt)?.getTime() ?? 0),
-  };
-  return <CrudPage config={config} />;
-}
-
 
 /* -------------------------------------------------------------- certificates */
 export function CertificatesPage() {
@@ -495,21 +477,13 @@ export function LmsOverview() {
     `${role}${uid}`
   );
 
-  const live = useCollection<LiveClass>(
-    C.liveClasses,
-    () => [],
-    'all'
-  );
-
-  const upcoming = live.data
-    .filter(
-      (l) => (toDate(l.endsAt)?.getTime() ?? 0) > Date.now()
-    )
-    .sort(
-      (a, b) =>
-        (toDate(a.startsAt)?.getTime() ?? 0) -
-        (toDate(b.startsAt)?.getTime() ?? 0)
-    );
+  // Live classes now come from the timetable (sessions). Meeting URLs are never read here.
+  const seeAll = role === 'super_admin' || role === 'admin' || role === 'principal' || role === 'director';
+  const horizon = useMemo(() => { const t = new Date(); const n = new Date(t.getTime() + 35 * 86_400_000); return [t.toISOString().slice(0, 10), n.toISOString().slice(0, 10)]; }, []);
+  const live = useSessions(horizon, uid, seeAll);
+  const upcoming = live.sessions
+    .filter((l) => l.online && l.status === 'scheduled' && (toDate(l.endAt)?.getTime() ?? 0) > Date.now())
+    .sort((a, b) => (toDate(a.startAt)?.getTime() ?? 0) - (toDate(b.startAt)?.getTime() ?? 0));
 
   const avg = enr.data.length
     ? Math.round(
@@ -563,19 +537,15 @@ export function LmsOverview() {
                 <span>
                   <span className="font-medium">{l.title}</span>
                   <span className="block text-xs text-muted">
-                    {fmtDate(l.startsAt, true)}
+                    {fmtDate(l.startAt, true)}
                   </span>
                 </span>
 
-                <a
-                  href={l.meetingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <Link to="/app/lms/live">
                   <Button size="sm" variant="outline">
-                    Join
+                    Open
                   </Button>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
