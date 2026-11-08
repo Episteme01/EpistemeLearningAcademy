@@ -4,9 +4,13 @@ rules_version = '2';
 // Episteme Learning Academy — Cloud Firestore Security Rules
 //
 // Authorization model
-//   * Every signed-in person has a profile document  users/{uid}  with `role` and
+//   * Every signed-in person has ONE profile document  users/{uid}  with `roles`
+//     (list; the legacy single `role` is the primary and must be one of them) and
 //     `status`. Rules read that document (one cached get() per request).
-//   * Users can NEVER write their own role/status (only admin tiers can).
+//   * Authorisation is the UNION of the person's assigned roles. The workspace
+//     switcher in the app only scopes the UI; it cannot grant anything.
+//   * Users can NEVER write their own role/roles/status (only admin tiers can).
+//   * Only a super admin can grant or remove super_admin / admin.
 //   * Parents and students are linked to records through denormalised arrays/fields
 //     (`parentUids`, `studentUid`) that are written by staff only.
 //   * Anything not matched below is denied.
@@ -27,8 +31,18 @@ service cloud.firestore {
     function hasProfile() { return signedIn() && exists(profilePath(uid())); }
     function me() { return get(profilePath(uid())).data; }
     function active() { return hasProfile() && me().status == 'active'; }
-    function inRoles(rs) { return active() && me().role in rs; }
-    function isRole(r) { return active() && me().role == r; }
+    function myRoles() { return me().get('roles', [me().role]); }
+    function inRoles(rs) { return active() && myRoles().hasAny(rs); }
+    function isRole(r) { return active() && (r in myRoles()); }
+    // Role-set helpers used when validating writes to users/{uid}
+    function rolesIn(d) { return d.get('roles', [d.role]); }
+    function topTier(rs) { return rs.hasAny(['super_admin', 'admin']); }
+    function roleShapeOk(d) {
+      return d.role in ['super_admin', 'director', 'principal', 'admin', 'admissions', 'finance', 'teacher', 'cms_editor', 'cms_author', 'parent', 'student']
+        && (!('roles' in d)
+            || (d.roles is list && d.roles.size() >= 1 && d.roles.size() <= 6 && d.role in d.roles
+                && d.roles.hasOnly(['super_admin', 'director', 'principal', 'admin', 'admissions', 'finance', 'teacher', 'cms_editor', 'cms_author', 'parent', 'student'])));
+    }
 
     function isSuper()          { return isRole('super_admin'); }
     function isAdminTier()      { return inRoles(['super_admin', 'admin']); }
@@ -60,14 +74,16 @@ service cloud.firestore {
       allow list: if isAnyStaff();
 
       // Admin tiers create accounts. Only a super admin can mint admin/super roles.
-      allow create: if (isSuper() ||
-                        (isRole('admin') && request.resource.data.role in
-                          ['director', 'principal', 'admissions', 'finance', 'teacher', 'cms_editor', 'cms_author', 'parent', 'student']) ||
-                        (isRole('admissions') && request.resource.data.role in ['parent', 'student']));
+      allow create: if roleShapeOk(request.resource.data) &&
+                       (isSuper() ||
+                        (isRole('admin') && !topTier(rolesIn(request.resource.data))) ||
+                        (isRole('admissions') && rolesIn(request.resource.data).hasOnly(['parent', 'student'])));
 
-      allow update: if isSuper()
-                    || (isRole('admin') && resource.data.role != 'super_admin' && resource.data.role != 'admin'
-                        && request.resource.data.role != 'super_admin' && request.resource.data.role != 'admin')
+      // Role changes: super admin = anything valid. Admin = may not touch (or create) admin/super holders.
+      // Everyone else may only edit harmless profile fields on their own document (never roles/status).
+      allow update: if (isSuper() && roleShapeOk(request.resource.data))
+                    || (isRole('admin') && roleShapeOk(request.resource.data)
+                        && !topTier(rolesIn(resource.data)) && !topTier(rolesIn(request.resource.data)))
                     || (signedIn() && userId == uid() && active()
                         && onlyChanges(['displayName', 'phone', 'photoUrl', 'updatedAt']));
       allow delete: if isSuper();

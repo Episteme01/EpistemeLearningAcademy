@@ -4,15 +4,15 @@ rules_version = '2';
 // Blaze (pay-as-you-go) plan to use Cloud Storage. The app works without it
 // (set VITE_ENABLE_STORAGE=false and use image URLs / bundled /images files).
 //
-// Roles are read from Firestore users/{uid}.role.
+// Roles are read from Firestore users/{uid}.roles (falls back to the legacy .role).
 
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
     function profile() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
-    function role() { return profile().role; }
+    function roles() { return profile().get('roles', [profile().role]); }
     function active() { return signedIn() && profile().status == 'active'; }
-    function inRoles(rs) { return active() && role() in rs; }
+    function inRoles(rs) { return active() && roles().hasAny(rs); }
     function isImage() { return request.resource.contentType.matches('image/(jpeg|png|webp|gif)'); }
     function isDoc() {
       return request.resource.contentType.matches('application/pdf')
