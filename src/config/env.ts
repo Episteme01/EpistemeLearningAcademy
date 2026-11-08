@@ -49,4 +49,4 @@ export const flags = {
   functions: env.VITE_USE_CLOUD_FUNCTIONS === 'true',
 };
 
-export const SITE_URL = (env.VITE_SITE_URL as string | undefined) ?? 'https://episteme01.github.io/Episteme-Learning-Academy';
+export const SITE_URL = (env.VITE_SITE_URL as string | undefined) ?? (typeof window !== 'undefined' ? window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '') : '');
