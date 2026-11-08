@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight, ExternalLink, LogOut, Menu, X } from 'lucide-react';
 import { BRAND } from '@/config/brand';
 import { NAV, navFor, platformsFor } from '@/config/nav';
@@ -15,8 +15,9 @@ function platformOf(pathname: string): Platform {
 }
 
 export function PortalLayout() {
-  const { profile, role, logout } = useAuth();
+  const { profile, role, roles, switchRole, logout } = useAuth();
   const { pathname } = useLocation();
+  const nav = useNavigate();
   const [drawer, setDrawer] = useState(false);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -151,6 +152,16 @@ export function PortalLayout() {
                       <p className="truncate text-sm font-medium">{profile?.displayName}</p>
                       <p className="truncate text-xs text-muted">{profile?.email}</p>
                     </div>
+                    {roles.length > 1 && (
+                      <div className="border-b border-line px-2 py-2" role="group" aria-label="Switch workspace">
+                        <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted">Workspace</p>
+                        {roles.map((r) => (
+                          <button key={r} role="menuitemradio" aria-checked={r === role} onClick={() => { switchRole(r); setMenu(false); nav('/app'); }} className={cn('flex w-full items-center justify-between rounded px-2 py-2 text-left text-sm hover:bg-cream', r === role && 'font-semibold text-forest')}>
+                            {ROLE_LABELS[r]}{r === role && <span aria-hidden>✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <Link role="menuitem" to="/app/profile" onClick={() => setMenu(false)} className="block px-4 py-2.5 text-sm hover:bg-cream">My profile</Link>
                     <button role="menuitem" onClick={() => { void logout(); }} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-danger hover:bg-cream"><LogOut className="h-4 w-4" /> Sign out</button>
                   </div>
