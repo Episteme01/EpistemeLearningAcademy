@@ -373,3 +373,60 @@ export interface CbtResult {
   gradedAt?: TS;
   gradedBy?: string;
 }
+
+
+/* ---------------------------------------------------------- Timetable (Phase 2) */
+export type SessionStatus = 'scheduled' | 'cancelled' | 'completed';
+
+export interface TimetableSeries {
+  title: string;
+  description?: string;
+  courseId?: string; courseName?: string;
+  subjectId?: string; subjectName?: string;
+  classId?: string; className?: string;
+  teacherUid: string; teacherName: string;
+  location?: string;
+  online: boolean;
+  provider?: string;
+  startDate: string; startTime: string; endTime: string; timezone: string;
+  recurrence: import('@/lib/schedule/recurrence').Recurrence;
+  /** logins of the learners who may attend (after exclusions) */
+  studentUids: string[];
+  /** student record ids (for names / editing) */
+  studentIds: string[];
+  excludedStudentIds: string[];
+  parentUids: string[];
+  viewers: string[];
+  status: 'active' | 'cancelled';
+  createdBy: string; createdByName: string;
+  createdAt?: TS; updatedAt?: TS;
+}
+
+/** One concrete class meeting. The meeting URL is NOT stored here (see SessionLink). */
+export interface Session {
+  seriesId: string; seriesIndex: number;
+  title: string; description?: string;
+  courseId?: string; courseName?: string;
+  subjectId?: string; subjectName?: string;
+  classId?: string; className?: string;
+  teacherUid: string; teacherName: string;
+  location?: string; online: boolean; provider?: string;
+  startAt: TS; endAt: TS;
+  localDate: string; monthKey: string; timezone: string;
+  status: SessionStatus;
+  cancelReason?: string;
+  rescheduledFrom?: TS;
+  /** true once this occurrence was edited on its own; series-wide edits then skip it */
+  overridden: boolean;
+  studentUids: string[]; parentUids: string[];
+  /** teacher + learners + guardians: who may read this session (security rules) */
+  viewers: string[];
+  createdBy: string; createdByName?: string;
+  updatedBy?: string; updatedByName?: string;
+  createdAt?: TS; updatedAt?: TS;
+}
+
+/** Secret join details. Readable only by schedulers, the teacher, and — inside the join window — the session's audience. */
+export interface SessionLink { provider: string; meetingUrl: string; meetingId?: string; passcode?: string; updatedBy?: string; updatedAt?: TS }
+
+export interface SessionAccessLog { sessionId: string; teacherUid: string; uid: string; name: string; role: string; action: 'link_view' | 'link_click'; at?: TS }
