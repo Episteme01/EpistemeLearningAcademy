@@ -7,7 +7,10 @@ export type TS = unknown;
 export interface UserProfile {
   email: string;
   displayName: string;
+  /** Primary role (kept for backward compatibility; always one of `roles`). */
   role: Role;
+  /** Every role this person holds. Authoritative; only admins can change it (see firestore.rules). */
+  roles?: Role[];
   status: 'active' | 'suspended' | 'pending';
   phone?: string;
   photoUrl?: string;
