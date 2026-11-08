@@ -21,6 +21,7 @@ import * as LmsWork from '@/features/lms/work';
 import * as Cbt from '@/features/cbt/pages';
 import { MyExamsPage, TakeExamPage } from '@/features/cbt/student';
 import { Dashboard } from '@/features/dashboards/Dashboard';
+import { CalendarPage } from '@/features/schedule/Calendar';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
 
@@ -105,7 +106,8 @@ export function App() {
         <Route path="lms/course/:id" element={guard('', <Lms.CoursePlayer />, [...STAFF_ACADEMIC, 'student'])} />
         <Route path="lms/assignments" element={guard('/app/lms/assignments', <LmsWork.LmsAssignmentsPage />)} />
         <Route path="lms/quizzes" element={guard('/app/lms/quizzes', <LmsWork.QuizzesPage />)} />
-        <Route path="lms/live" element={guard('/app/lms/live', <LmsWork.LiveClassesPage />)} />
+        <Route path="lms/live" element={guard('/app/lms/live', <CalendarPage liveOnly />)} />
+        <Route path="schedule" element={guard('/app/schedule', <CalendarPage />)} />
         <Route path="lms/certificates" element={guard('/app/lms/certificates', <LmsWork.CertificatesPage />)} />
         <Route path="lms/progress" element={guard('/app/lms/progress', <LmsWork.ProgressPage />)} />
 
