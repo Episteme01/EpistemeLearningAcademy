@@ -12,6 +12,8 @@ export interface NewAccount {
   password: string;
   displayName: string;
   role: Role;
+  /** Additional roles for the same person (optional). `role` is always included. */
+  extraRoles?: Role[];
   phone?: string;
   studentId?: string;
   classId?: string;
@@ -41,6 +43,7 @@ export async function createAccount(acc: NewAccount): Promise<string> {
         email: acc.email.trim().toLowerCase(),
         displayName: acc.displayName,
         role: acc.role,
+        roles: [...new Set([acc.role, ...(acc.extraRoles ?? [])])],
         status: 'active',
         phone: acc.phone ?? '',
         studentId: acc.studentId ?? '',
