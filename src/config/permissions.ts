@@ -111,3 +111,23 @@ export const ROLE_PLATFORMS: Record<Role, Platform[]> = {
   parent: ['home', 'ems', 'lms'],
   student: ['home', 'ems', 'lms', 'cbt'],
 };
+
+
+/** All roles a profile holds. Falls back to the legacy single `role` field. */
+export function rolesOf(p?: { role?: Role; roles?: Role[] } | null): Role[] {
+  if (!p) return [];
+  const list = (p.roles?.length ? p.roles : p.role ? [p.role] : []).filter((r): r is Role => ALL_ROLES.includes(r));
+  return [...new Set(list)];
+}
+
+/** Capability check across several roles (union). */
+export function canAny(roles: Role[], perm: Permission): boolean {
+  return roles.some((r) => can(r, perm));
+}
+
+/** Roles an actor may grant or remove. Only a super admin can touch super_admin/admin. */
+export function assignableRoles(actorRoles: Role[]): Role[] {
+  if (actorRoles.includes('super_admin')) return ALL_ROLES;
+  if (actorRoles.includes('admin')) return ALL_ROLES.filter((r) => r !== 'super_admin' && r !== 'admin');
+  return [];
+}
