@@ -36,7 +36,7 @@ The site shows a setup screen instead of crashing if Firebase is not configured.
 There is deliberately no public sign-up and no default password.
 
 1. Firebase console → *Authentication → Users → Add user* (your email + a strong password). Copy the **User UID**.
-2. *Firestore → Start collection* `users` → Document ID = that UID, fields: `email` (string), `displayName` (string), `role` = `super_admin`, `status` = `active`.
+2. *Firestore → Start collection* `users` → Document ID = that UID, fields: `email` (string), `displayName` (string), `role` = `super_admin`, `status` = `active`, and (recommended) `roles` = an **array** containing the string `super_admin`. If `roles` is missing, the app treats the single `role` as your only role.
 3. Sign in at `/login`. Create every other account from **Users & access**.
 
 ## Optional starter data
