@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/overlay';
 import { useAuth } from './AuthContext';
 import { patchDoc } from '@/services/db';
 import { C } from '@/config/collections';
-import { ROLE_LABELS } from '@/config/permissions';
+import { ROLE_LABELS, rolesOf } from '@/config/permissions';
 import { errorMessage } from '@/lib/utils';
 
 export function ProfilePage() {
@@ -23,7 +23,7 @@ export function ProfilePage() {
   };
   return (
     <>
-      <PageHeader title="My profile" description={`${ROLE_LABELS[profile.role]} · ${profile.email}`} />
+      <PageHeader title="My profile" description={`${rolesOf(profile).map((r) => ROLE_LABELS[r]).join(' · ')} · ${profile.email}`} />
       <Card className="max-w-xl"><CardBody className="space-y-4">
         <Field label="Full name">{(a) => <Input {...a} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
         <Field label="Phone">{(a) => <Input {...a} value={phone} onChange={(e) => setPhone(e.target.value)} />}</Field>

@@ -8,7 +8,8 @@ import { auth, db } from '@/config/firebase';
 import { firebaseConfigured } from '@/config/env';
 import { C } from '@/config/collections';
 import type { UserProfile } from '@/types/models';
-import type { Role } from '@/config/permissions';
+import { rolesOf, type Role } from '@/config/permissions';
+import { setAuditActorRole } from '@/services/audit';
 
 type Status = 'loading' | 'signedOut' | 'ready' | 'noProfile' | 'inactive';
 
@@ -16,7 +17,11 @@ interface AuthState {
   status: Status;
   user: User | null;
   profile: UserProfile | null;
+  /** Active workspace role (UI scope). */
   role: Role | null;
+  /** Every role assigned to this person (authoritative, from the server document). */
+  roles: Role[];
+  switchRole: (r: Role) => void;
   uid: string | null;
   login: (email: string, password: string, remember: boolean) => Promise<void>;
   logout: () => Promise<void>;
@@ -29,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>(firebaseConfigured ? 'loading' : 'signedOut');
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [chosen, setChosen] = useState<Role | null>(null);
 
   useEffect(() => {
     if (!firebaseConfigured) return;
@@ -81,9 +87,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth(), email.trim());
   }, []);
 
+  const roles = useMemo(() => (status === 'ready' ? rolesOf(profile) : []), [status, profile]);
+  const uidNow = user?.uid ?? null;
+
+  // Restore the last chosen workspace, but only if the server still grants it.
+  useEffect(() => {
+    if (!uidNow) { setChosen(null); return; }
+    try { setChosen((localStorage.getItem(`ela.workspace.${uidNow}`) as Role | null) ?? null); } catch { setChosen(null); }
+  }, [uidNow]);
+
+  const role: Role | null = roles.length === 0 ? null : chosen && roles.includes(chosen) ? chosen : roles.includes(profile?.role as Role) ? (profile!.role as Role) : (roles[0] ?? null);
+  useEffect(() => { setAuditActorRole(role); }, [role]);
+
+  /** Switching changes the active workspace only. It does not create a new session and grants nothing. */
+  const switchRole = useCallback((r: Role) => {
+    if (!roles.includes(r)) return;
+    setChosen(r);
+    try { if (uidNow) localStorage.setItem(`ela.workspace.${uidNow}`, r); } catch { /* storage unavailable: choice lasts for this page only */ }
+  }, [roles, uidNow]);
+
   const value = useMemo<AuthState>(
-    () => ({ status, user, profile, role: status === 'ready' ? (profile?.role ?? null) : null, uid: user?.uid ?? null, login, logout, resetPassword }),
-    [status, user, profile, login, logout, resetPassword],
+    () => ({ status, user, profile, role, roles, switchRole, uid: uidNow, login, logout, resetPassword }),
+    [status, user, profile, role, roles, switchRole, uidNow, login, logout, resetPassword],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
