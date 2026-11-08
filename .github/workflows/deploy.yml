@@ -1,0 +1,55 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Set these under Settings → Secrets and variables → Actions → Variables.
+      # Firebase web config values are public identifiers, so Variables (not Secrets) are fine.
+      VITE_FIREBASE_CONFIG_JSON: ${{ vars.VITE_FIREBASE_CONFIG_JSON }}
+      VITE_ENABLE_STORAGE: ${{ vars.VITE_ENABLE_STORAGE }}
+      VITE_USE_CLOUD_FUNCTIONS: ${{ vars.VITE_USE_CLOUD_FUNCTIONS }}
+      VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
+      VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Firebase configuration is present
+        run: |
+          if [ -z "$VITE_FIREBASE_CONFIG_JSON" ]; then
+            echo "::error::Repository variable VITE_FIREBASE_CONFIG_JSON is missing. See README → Deploy."
+            exit 1
+          fi
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
