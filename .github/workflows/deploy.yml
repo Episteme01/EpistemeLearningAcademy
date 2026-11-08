@@ -30,6 +30,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Work out the site base path from the repository name
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          if [ -n "$VITE_BASE_PATH" ]; then BASE="$VITE_BASE_PATH"
+          elif [ "${REPO,,}" = "${OWNER,,}.github.io" ]; then BASE="/"
+          else BASE="/$REPO/"; fi
+          echo "VITE_BASE_PATH=$BASE" >> "$GITHUB_ENV"
+          # 404.html redirect trick: 0 path segments to keep on a root site, 1 on a project site
+          if [ "$BASE" = "/" ]; then KEEP=0; else KEEP=1; fi
+          sed -i "s/var pathSegmentsToKeep = [0-9]*/var pathSegmentsToKeep = $KEEP/" public/404.html
+          echo "Base path: $BASE (segments to keep: $KEEP)"
       - name: Check Firebase configuration is present
         run: |
           if [ -z "$VITE_FIREBASE_CONFIG_JSON" ]; then
