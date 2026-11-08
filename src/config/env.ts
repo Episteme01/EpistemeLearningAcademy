@@ -15,6 +15,8 @@ export interface FirebaseWebConfig {
   measurementId?: string;
 }
 
+import fileConfig from './firebase-config.json';
+
 const env = import.meta.env;
 
 function fromJson(): Partial<FirebaseWebConfig> | null {
@@ -28,23 +30,25 @@ function fromJson(): Partial<FirebaseWebConfig> | null {
   }
 }
 
+// Priority: VITE_FIREBASE_CONFIG_JSON variable > individual VITE_FIREBASE_* > src/config/firebase-config.json
 const json = fromJson();
+const file = fileConfig as Partial<FirebaseWebConfig>;
 
 export const firebaseConfig: Partial<FirebaseWebConfig> = {
-  apiKey: json?.apiKey ?? env.VITE_FIREBASE_API_KEY,
-  authDomain: json?.authDomain ?? env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: json?.projectId ?? env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: json?.storageBucket ?? env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: json?.messagingSenderId ?? env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: json?.appId ?? env.VITE_FIREBASE_APP_ID,
-  measurementId: json?.measurementId ?? env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: json?.apiKey ?? env.VITE_FIREBASE_API_KEY ?? file.apiKey,
+  authDomain: json?.authDomain ?? env.VITE_FIREBASE_AUTH_DOMAIN ?? file.authDomain,
+  projectId: json?.projectId ?? env.VITE_FIREBASE_PROJECT_ID ?? file.projectId,
+  storageBucket: json?.storageBucket ?? env.VITE_FIREBASE_STORAGE_BUCKET ?? file.storageBucket,
+  messagingSenderId: json?.messagingSenderId ?? env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? file.messagingSenderId,
+  appId: json?.appId ?? env.VITE_FIREBASE_APP_ID ?? file.appId,
+  measurementId: json?.measurementId ?? env.VITE_FIREBASE_MEASUREMENT_ID ?? file.measurementId,
 };
 
 export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 
 export const flags = {
   /** Cloud Storage for Firebase (may require the Blaze plan) */
-  storage: env.VITE_ENABLE_STORAGE !== 'false',
+  storage: env.VITE_ENABLE_STORAGE === 'true',
   /** Server-side CBT grading through Cloud Functions (Blaze plan) */
   functions: env.VITE_USE_CLOUD_FUNCTIONS === 'true',
 };
