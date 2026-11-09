@@ -1,0 +1,16 @@
+name: Keep file service awake
+# A free Supabase project is paused after about a week without activity. This pings the file gateway twice a week.
+# It does nothing until the repository variable VITE_FILES_GATEWAY_URL is set.
+on:
+  schedule: [{ cron: '17 6 * * 1,4' }]
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping
+        env:
+          URL: ${{ vars.VITE_FILES_GATEWAY_URL }}
+        run: |
+          if [ -z "$URL" ]; then echo "VITE_FILES_GATEWAY_URL not set; skipping"; exit 0; fi
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"action":"ping"}' "$URL" || echo "ping failed (project may be paused: open the Supabase dashboard and restore it)"

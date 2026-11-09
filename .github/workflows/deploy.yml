@@ -21,7 +21,7 @@ jobs:
       # Set these under Settings → Secrets and variables → Actions → Variables.
       # Firebase web config values are public identifiers, so Variables (not Secrets) are fine.
       VITE_FIREBASE_CONFIG_JSON: ${{ vars.VITE_FIREBASE_CONFIG_JSON }}
-      VITE_ENABLE_STORAGE: ${{ vars.VITE_ENABLE_STORAGE }}
+      VITE_FILES_GATEWAY_URL: ${{ vars.VITE_FILES_GATEWAY_URL }}
       VITE_USE_CLOUD_FUNCTIONS: ${{ vars.VITE_USE_CLOUD_FUNCTIONS }}
       VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
       VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
