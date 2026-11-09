@@ -1,0 +1,4 @@
+{
+  "storage": true,
+  "_note": "Set storage to false if your Firebase project is on the free Spark plan. File uploads need Cloud Storage, which needs the Blaze plan (see README)."
+}
