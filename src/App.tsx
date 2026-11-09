@@ -20,8 +20,10 @@ import * as Lms from '@/features/lms/pages';
 import * as LmsWork from '@/features/lms/work';
 import * as Cbt from '@/features/cbt/pages';
 import { MyExamsPage, TakeExamPage } from '@/features/cbt/student';
+import { UpdateBanner } from '@/components/common/UpdateBanner';
 import { Dashboard } from '@/features/dashboards/Dashboard';
 import { CalendarPage } from '@/features/schedule/Calendar';
+import { AttendancePage } from '@/features/attendance/AttendancePage';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
 
@@ -34,6 +36,8 @@ function guard(path: string, el: ReactNode, extra?: Role[]) {
 export function App() {
   if (!firebaseConfigured) return <SetupScreen />;
   return (
+    <>
+    <UpdateBanner />
     <Routes>
       <Route element={<PublicLayout />}>
         <Route index element={<P.HomePage />} />
@@ -108,6 +112,7 @@ export function App() {
         <Route path="lms/quizzes" element={guard('/app/lms/quizzes', <LmsWork.QuizzesPage />)} />
         <Route path="lms/live" element={guard('/app/lms/live', <CalendarPage liveOnly />)} />
         <Route path="schedule" element={guard('/app/schedule', <CalendarPage />)} />
+        <Route path="attendance" element={guard('/app/attendance', <AttendancePage />)} />
         <Route path="lms/certificates" element={guard('/app/lms/certificates', <LmsWork.CertificatesPage />)} />
         <Route path="lms/progress" element={guard('/app/lms/progress', <LmsWork.ProgressPage />)} />
 
@@ -122,5 +127,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Route>
     </Routes>
+    </>
   );
 }

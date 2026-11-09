@@ -9,6 +9,9 @@ import './index.css';
 import { App } from './App';
 import { AuthProvider } from '@/features/auth/AuthContext';
 import { ToastProvider } from '@/components/ui/overlay';
+import { registerPwa } from './pwa';
+
+registerPwa();
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
