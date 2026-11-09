@@ -17,7 +17,7 @@ export const LIMITS: Record<FileKind, number> = { image: 10 * 1024 * 1024, docum
 export const ACCEPT_ALL = 'image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/aac,audio/wav,audio/ogg,video/mp4,video/webm,video/quicktime,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
 
 export function validateUpload(file: File, opts: { imagesOnly?: boolean; maxBytes?: number } = {}): string | null {
-  if (!flags.storage) return 'File uploads are turned off. Cloud Storage needs the Firebase Blaze plan — see the README, then set "storage": true in src/config/features.json.';
+  if (!flags.uploads) return 'File uploads are turned off. Cloud Storage needs the Firebase Blaze plan; see the README, then set "storage": true in src/config/features.json.';
   const kind = kindOf(file.type);
   if (!kind || (opts.imagesOnly && kind !== 'image')) return opts.imagesOnly ? 'Only JPG, PNG, WebP or GIF images are allowed here.' : 'This file type is not allowed. Use images, audio (MP3/M4A/WAV), video (MP4/WebM), PDF, Word, Excel, PowerPoint or text.';
   const max = opts.maxBytes ?? LIMITS[kind];
@@ -50,12 +50,15 @@ export async function uploadFile(path: string, file: File, onProgress?: (pct: nu
 }
 
 /** Upload to the public media library and register it in Firestore (`media`). */
-export async function uploadToMedia(file: File, onProgress?: (pct: number) => void, alt = '') {
+export async function uploadToMedia(file: File, onProgress?: (pct: number) => void, alt = '', meta: { folder?: string; tags?: string[] } = {}) {
   const { url, path } = await uploadFile('public/media', file, onProgress);
+  const u = auth().currentUser;
+  const kind = kindOf(file.type) ?? 'document';
   const id = await createDoc(C.media, {
-    name: file.name, url, path, alt, contentType: file.type, size: file.size, source: 'upload', uploadedBy: auth().currentUser?.uid ?? '',
+    name: file.name, url, path, alt, contentType: file.type, kind, size: file.size, source: 'upload',
+    folder: meta.folder ?? '', tags: meta.tags ?? [], uploadedBy: u?.uid ?? '', uploadedByName: u?.displayName ?? u?.email ?? '',
   });
-  return { id, url };
+  return { id, url, kind, name: file.name, contentType: file.type };
 }
 
 export async function deleteStored(path: string | undefined) {
