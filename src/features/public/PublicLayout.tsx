@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { InstallBanner } from '@/components/common/InstallApp';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Mail, MapPin, Menu, Phone, Search, X } from 'lucide-react';
 import { BRAND, IMAGES, whatsappLink } from '@/config/brand';
@@ -73,6 +74,7 @@ export function PublicLayout() {
       </header>
 
       <main id="main" className="flex-1"><Outlet /></main>
+      <div className="mx-auto w-full max-w-3xl px-4 pb-4"><InstallBanner /></div>
 
       <a href={whatsappLink('Hello Episteme Learning Academy, I would like to enquire.')} target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp"
         className="fixed bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-pop ring-1 ring-line hover:scale-105 transition-transform">
