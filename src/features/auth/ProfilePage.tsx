@@ -4,6 +4,7 @@ import { Card, CardBody, PageHeader } from '@/components/ui/card';
 import { Field, Input } from '@/components/ui/form';
 import { useToast } from '@/components/ui/overlay';
 import { useAuth } from './AuthContext';
+import { PhotoControl } from '@/components/common/PhotoControl';
 import { patchDoc } from '@/services/db';
 import { C } from '@/config/collections';
 import { ROLE_LABELS, rolesOf } from '@/config/permissions';
@@ -25,6 +26,7 @@ export function ProfilePage() {
     <>
       <PageHeader title="My profile" description={`${rolesOf(profile).map((r) => ROLE_LABELS[r]).join(' · ')} · ${profile.email}`} />
       <Card className="max-w-xl"><CardBody className="space-y-4">
+        <PhotoControl collection="users" docId={uid} name={profile.displayName} current={profile.photoRef ?? null} legacyUrl={profile.photoUrl} />
         <Field label="Full name">{(a) => <Input {...a} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
         <Field label="Phone">{(a) => <Input {...a} value={phone} onChange={(e) => setPhone(e.target.value)} />}</Field>
         <div className="flex flex-wrap gap-2">
