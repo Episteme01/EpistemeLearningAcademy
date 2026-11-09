@@ -16,6 +16,7 @@ export interface FirebaseWebConfig {
 }
 
 import fileConfig from './firebase-config.json';
+import features from './features.json';
 
 const env = import.meta.env;
 
@@ -47,8 +48,9 @@ export const firebaseConfig: Partial<FirebaseWebConfig> = {
 export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 
 export const flags = {
-  /** Cloud Storage for Firebase (may require the Blaze plan) */
-  storage: env.VITE_ENABLE_STORAGE === 'true',
+  /** True when file uploads are available (Cloud Storage for Firebase, Blaze plan). */
+  // features.json decides by default; VITE_ENABLE_STORAGE ('true'/'false') overrides it.
+  uploads: env.VITE_ENABLE_STORAGE === 'true' ? true : env.VITE_ENABLE_STORAGE === 'false' ? false : features.storage,
   /** Server-side CBT grading through Cloud Functions (Blaze plan) */
   functions: env.VITE_USE_CLOUD_FUNCTIONS === 'true',
 };

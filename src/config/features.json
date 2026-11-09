@@ -1,0 +1,4 @@
+{
+  "storage": true,
+  "_note": "Set storage to false only if the Firebase project is on the free Spark plan. Uploads need Cloud Storage (Blaze plan)."
+}

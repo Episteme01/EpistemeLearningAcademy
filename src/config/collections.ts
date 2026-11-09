@@ -8,6 +8,7 @@ export const C = {
   categories: 'categories',
   announcements: 'announcements',
   media: 'media',
+  resources: 'resources',
   settings: 'settings',
   contactEnquiries: 'contactEnquiries',
   admissionEnquiries: 'admissionEnquiries',
@@ -47,6 +48,9 @@ export const C = {
   sessions: 'sessions',
   sessionLinks: 'sessionLinks',
   sessionAccess: 'sessionAccess',
+  // Live-class attendance (Phase 3)
+  sessionAttendance: 'sessionAttendance',
+  attendanceLog: 'attendanceLog',
   certificates: 'certificates',
   // CBT
   questions: 'questions',
