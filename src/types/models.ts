@@ -465,3 +465,35 @@ export interface AttendanceLog {
   fromStatus: string; toStatus: string; fromTiming?: string; toTiming?: string;
   reason: string; at?: TS;
 }
+
+
+/* ------------------------------------------------------ Media + resources (Phase 4) */
+export type MediaKind = 'image' | 'audio' | 'video' | 'document' | 'link';
+
+/** Website media library item (public files in Firebase Storage `public/media`, or an external image URL). */
+export interface MediaItem {
+  name: string; url: string; path?: string;
+  alt?: string; description?: string;
+  contentType?: string; kind?: MediaKind; size?: number;
+  folder?: string; tags?: string[];
+  source?: 'upload' | 'url';
+  uploadedBy?: string; uploadedByName?: string;
+  createdAt?: TS; updatedAt?: TS;
+}
+
+export type ResourceAudience = 'student' | 'parent' | 'teacher';
+
+/** A learning resource in the central Resources centre: an uploaded file, a library item or an external link. */
+export interface Resource {
+  title: string; description?: string;
+  kind: 'file' | 'link';
+  fileKind: MediaKind;
+  url: string; storagePath?: string; contentType?: string; size?: number; fileName?: string;
+  subject?: string; courseId?: string; courseName?: string; classId?: string; className?: string;
+  tags: string[];
+  /** roles that may see it once published (staff academic roles always see everything) */
+  visibleTo: ResourceAudience[];
+  published: boolean;
+  createdBy: string; createdByName?: string;
+  createdAt?: TS; updatedAt?: TS;
+}
