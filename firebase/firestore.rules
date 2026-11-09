@@ -85,7 +85,9 @@ service cloud.firestore {
                     || (isRole('admin') && roleShapeOk(request.resource.data)
                         && !topTier(rolesIn(resource.data)) && !topTier(rolesIn(request.resource.data)))
                     || (signedIn() && userId == uid() && active()
-                        && onlyChanges(['displayName', 'phone', 'photoUrl', 'updatedAt']));
+                        && onlyChanges(['displayName', 'phone', 'photoUrl', 'photoRef', 'updatedAt'])
+                        && (!('photoRef' in request.resource.data) || request.resource.data.photoRef == null
+                            || (request.resource.data.photoRef.provider == 'supabase' && request.resource.data.photoRef.path.matches('users/' + userId + '/.*'))));
       allow delete: if isSuper();
     }
 
@@ -320,15 +322,24 @@ service cloud.firestore {
       allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.teacherUid == uid());
     }
     // id convention: {assignmentId}_{uid}
+    // A submitted file must be a private Supabase upload inside the student's OWN folder (uid/assignment/...).
+    // This stops one student pointing their submission at someone else's file.
+    function subFileOk(d) {
+      return d.get('fileRef', null) == null
+             || (d.fileRef.provider == 'supabase' && d.fileRef.bucket == 'submissions'
+                 && d.fileRef.path.matches(d.uid + '/' + d.assignmentId + '/.*'));
+    }
     match /submissions/{id} {
       allow read: if isAcademicStaff() || isOwnerOf(resource.data) || isParentOf(resource.data);
       allow create: if isRole('student') && request.resource.data.uid == uid()
                     && id == request.resource.data.assignmentId + '_' + uid()
                     && request.resource.data.status == 'submitted'
-                    && !('score' in request.resource.data);
+                    && !('score' in request.resource.data)
+                    && subFileOk(request.resource.data);
       allow update: if isAcademicStaff()
         || (isOwnerOf(resource.data) && resource.data.status != 'graded'
-            && request.resource.data.status == 'submitted' && !('score' in request.resource.data));
+            && request.resource.data.status == 'submitted' && !('score' in request.resource.data)
+            && subFileOk(request.resource.data));
       allow delete: if isAcademicLeader();
     }
 
@@ -613,7 +624,13 @@ service cloud.firestore {
       return str(d.title, 150) && d.kind in ['file', 'link']
         && d.visibleTo is list && d.visibleTo.size() <= 3 && d.visibleTo.hasOnly(['student', 'parent', 'teacher'])
         && d.published is bool && d.tags is list && d.tags.size() <= 20
-        && str(d.url, 1500) && d.url.matches('https://.*');
+        && d.url is string && d.url.size() <= 1500
+        && (d.url == '' || d.url.matches('https://.*'))
+        // a file needs a public https URL (library item) OR a private upload owned by its creator; a link needs a URL
+        && (d.url != '' || (d.kind == 'file' && d.get('fileRef', null) != null
+                            && d.fileRef.provider == 'supabase' && d.fileRef.bucket == 'resources'
+                            && d.fileRef.path.matches(d.createdBy + '/.*')))
+        && (d.get('fileRef', null) == null || (d.fileRef.provider == 'supabase' && d.fileRef.path.matches(d.createdBy + '/.*')));
     }
     match /resources/{id} {
       allow read: if resLeader() || inRoles(['director', 'teacher'])
