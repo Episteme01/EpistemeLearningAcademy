@@ -4,6 +4,8 @@ export type WithId<T> = T & { id: string };
 /** Firestore Timestamp | Date | ISO string — normalised with toDate() from lib/utils */
 export type TS = unknown;
 
+import type { FileRef } from '@/lib/fileRef';
+
 export interface UserProfile {
   email: string;
   displayName: string;
@@ -14,6 +16,8 @@ export interface UserProfile {
   status: 'active' | 'suspended' | 'pending';
   phone?: string;
   photoUrl?: string;
+  /** private profile picture (Supabase). Shown through a short-lived link. */
+  photoRef?: FileRef;
   /** link to students/{id} for student accounts */
   studentId?: string;
   /** class of a student account (denormalised for security rules) */
@@ -38,6 +42,7 @@ export interface Student {
   admissionStatus: 'applicant' | 'admitted' | 'enrolled' | 'graduated' | 'withdrawn';
   status: 'active' | 'suspended' | 'inactive';
   photoUrl?: string;
+  photoRef?: FileRef;
   address?: string;
   stateOfOrigin?: string;
   religion?: string;
@@ -247,6 +252,8 @@ export interface Lesson {
   content?: string;
   videoUrl?: string;
   fileUrl?: string;
+  /** private submission file (Supabase). */
+  fileRef?: FileRef;
   attachments?: { name: string; url: string }[];
   durationMin?: number;
   preview?: boolean;
@@ -477,6 +484,8 @@ export interface MediaItem {
   contentType?: string; kind?: MediaKind; size?: number;
   folder?: string; tags?: string[];
   source?: 'upload' | 'url';
+  provider?: 'cloudinary' | 'firebase' | 'link';
+  ref?: FileRef;
   uploadedBy?: string; uploadedByName?: string;
   createdAt?: TS; updatedAt?: TS;
 }
@@ -488,7 +497,11 @@ export interface Resource {
   title: string; description?: string;
   kind: 'file' | 'link';
   fileKind: MediaKind;
-  url: string; storagePath?: string; contentType?: string; size?: number; fileName?: string;
+  /** public https link (links and library files). Empty for private uploads. */
+  url: string;
+  /** private upload in Supabase; opened through a short-lived signed link */
+  fileRef?: FileRef | null;
+  storagePath?: string; contentType?: string; size?: number; fileName?: string;
   subject?: string; courseId?: string; courseName?: string; classId?: string; className?: string;
   tags: string[];
   /** roles that may see it once published (staff academic roles always see everything) */
