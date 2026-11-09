@@ -430,3 +430,38 @@ export interface Session {
 export interface SessionLink { provider: string; meetingUrl: string; meetingId?: string; passcode?: string; updatedBy?: string; updatedAt?: TS }
 
 export interface SessionAccessLog { sessionId: string; teacherUid: string; uid: string; name: string; role: string; action: 'link_view' | 'link_click'; at?: TS }
+
+
+/* ------------------------------------------------- Live-class attendance (Phase 3) */
+export type AttStatus = 'pending_verification' | 'present' | 'absent' | 'excused' | 'left_early';
+export type AttTiming = 'early' | 'on_time' | 'late';
+export type AttMethod = 'self_checkin' | 'teacher_confirmed' | 'teacher_marked' | 'auto_finalised';
+
+/** One learner at one session. Document id = `${sessionId}_${studentUid}`, so duplicates are impossible. */
+export interface SessionAttendance {
+  sessionId: string; seriesId: string;
+  studentUid: string; studentId?: string; studentName: string;
+  parentUids: string[];
+  teacherUid: string; courseId?: string; classId?: string;
+  monthKey: string;
+  scheduledStart: TS; scheduledEnd: TS;
+  /** server time of the learner's own check-in (absent for teacher-marked records) */
+  checkInAt?: TS;
+  status: AttStatus;
+  /** early / on_time / late. Set when a teacher verifies; derived from checkInAt until then. */
+  timing?: AttTiming | '';
+  method: AttMethod;
+  verified: boolean;
+  verifiedBy?: string; verifiedByName?: string; markedBy?: string;
+  note?: string;
+  lastLogId?: string;
+  createdAt?: TS; updatedAt?: TS;
+}
+
+/** Append-only change history. Every correction needs a written reason. */
+export interface AttendanceLog {
+  attendanceId: string; sessionId: string; studentUid: string; teacherUid: string;
+  by: string; byName: string; byRole: string;
+  fromStatus: string; toStatus: string; fromTiming?: string; toTiming?: string;
+  reason: string; at?: TS;
+}
