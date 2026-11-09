@@ -1,6 +1,6 @@
 # Security notes
 
-- Never trust the UI. All access control is in `firebase/firestore.rules` and `firebase/storage.rules`.
+- Never trust the UI. All access control is in `firebase/firestore.rules`; file access is enforced by the `files` Edge Function (see PHASE4B_FILE_STORAGE.md).
 - No credentials are in the repo. Web config is injected at build time from GitHub Variables; restrict the API key by HTTP referrer.
 - Answer keys live in separate staff-only documents. Students can read exam paper questions only after their attempt document exists, and never the keys.
 - CBT timing: the attempt's `startedAt` must equal server `request.time`; later writes are refused after `startedAt + duration + 20 s`. Attempt number and `maxAttempts` (≤5) are checked in rules.
