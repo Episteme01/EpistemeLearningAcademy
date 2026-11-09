@@ -10,7 +10,7 @@ import { uploadToMedia, validateUpload } from '@/services/storage';
 import { errorMessage } from '@/lib/utils';
 import { asset } from '@/config/brand';
 
-interface MediaDoc { name: string; url: string; alt?: string }
+interface MediaDoc { name: string; url: string; alt?: string; contentType?: string }
 
 /** Bundled images that ship with the site (always available, no Storage needed). */
 const BUNDLED = ['classroom', 'founder', 'consultation', 'islamic-study', 'digital-hub', 'curriculum', 'skills', 'ielts', 'holistic', 'flexible', 'learning']
@@ -23,7 +23,7 @@ export function MediaPicker({ open, onClose, onPick }: { open: boolean; onClose:
     <Dialog open={open} onClose={onClose} title="Choose an image" description="Media library and bundled website images" size="xl">
       {loading ? <p className="text-sm text-muted">Loading…</p> : null}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-        {[...data.map((m) => ({ id: m.id, name: m.name, url: m.url })), ...BUNDLED].map((m) => (
+        {[...data.filter((m) => !m.contentType || m.contentType.startsWith('image/')).map((m) => ({ id: m.id, name: m.name, url: m.url })), ...BUNDLED].map((m) => (
           <button key={m.id} type="button" onClick={() => { onPick(m.url); onClose(); }}
             className="group overflow-hidden rounded-md border border-line text-left hover:border-gold-400 focus-visible:border-gold-400">
             <img src={m.url} alt={m.name} loading="lazy" className="aspect-[4/3] w-full object-cover" />
