@@ -24,6 +24,7 @@ import { UpdateBanner } from '@/components/common/UpdateBanner';
 import { Dashboard } from '@/features/dashboards/Dashboard';
 import { CalendarPage } from '@/features/schedule/Calendar';
 import { AttendancePage } from '@/features/attendance/AttendancePage';
+import { ResourcesPage } from '@/features/resources/ResourcesPage';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
 
@@ -113,6 +114,7 @@ export function App() {
         <Route path="lms/live" element={guard('/app/lms/live', <CalendarPage liveOnly />)} />
         <Route path="schedule" element={guard('/app/schedule', <CalendarPage />)} />
         <Route path="attendance" element={guard('/app/attendance', <AttendancePage />)} />
+        <Route path="resources" element={guard('/app/resources', <ResourcesPage />)} />
         <Route path="lms/certificates" element={guard('/app/lms/certificates', <LmsWork.CertificatesPage />)} />
         <Route path="lms/progress" element={guard('/app/lms/progress', <LmsWork.ProgressPage />)} />
 
