@@ -1,24 +1,21 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { addDoc, collection, orderBy, query, getDocs, limit, setDoc, doc, serverTimestamp, where } from 'firebase/firestore';
-import { Eye, EyeOff, History, Trash2, Upload } from 'lucide-react';
+import { Eye, EyeOff, History } from 'lucide-react';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { EntityForm } from '@/components/common/EntityForm';
 import type { FieldDef } from '@/components/common/crudFields';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody, CardHeader, PageHeader, StatCard } from '@/components/ui/card';
 import { StatusBadge, Spinner, EmptyState } from '@/components/ui/data';
-import { ConfirmDialog, Dialog, useToast } from '@/components/ui/overlay';
-import { Input } from '@/components/ui/form';
+import { Dialog, useToast } from '@/components/ui/overlay';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection, useDocument } from '@/hooks/useFirestore';
 import { useSettings } from '@/hooks/useSettings';
-import { patchDoc, createDoc, removeDoc } from '@/services/db';
+import { patchDoc, createDoc } from '@/services/db';
 import { audit } from '@/services/audit';
-import { uploadToMedia, validateUpload, deleteStored, kindOf, ACCEPT_ALL } from '@/services/storage';
 import { db } from '@/config/firebase';
 import { C } from '@/config/collections';
-import { flags } from '@/config/env';
 import { can } from '@/config/permissions';
 import { errorMessage, fmtDate, slugify, toDate } from '@/lib/utils';
 import { Rich } from '@/features/public/pages';
@@ -204,40 +201,8 @@ export const CmsSettings = () => <SettingsForm id="site" title="Website settings
     { name: 'facebook', label: 'Facebook URL', type: 'url' }, { name: 'instagram', label: 'Instagram URL', type: 'url' }, { name: 'youtube', label: 'YouTube URL', type: 'url' }, { name: 'tiktok', label: 'TikTok URL', type: 'url' },
     { name: 'footerText', label: 'Footer text', type: 'textarea' }]} />;
 
-/* -------------------------------------------------------------- media */
-export function CmsMedia() {
-  const toast = useToast();
-  const { role } = useAuth();
-  const { data, loading } = useCollection<{ name: string; url: string; path?: string; alt?: string; contentType?: string; size?: number }>(C.media, () => [], 'all');
-  const [url, setUrl] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [del, setDel] = useState<(typeof data)[number] | null>(null);
-  const upload = async (f?: File) => {
-    if (!f) return;
-    const p = validateUpload(f);
-    if (p) return toast.error(p);
-    setBusy(true);
-    try { await uploadToMedia(f); toast.success('Uploaded'); } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
-  };
-  const addUrl = async () => {
-    if (!/^https?:\/\//.test(url)) return toast.error('Enter a full image URL');
-    try { await createDoc(C.media, { name: url.split('/').pop() || 'image', url, source: 'url', alt: '' }); setUrl(''); toast.success('Added to library'); } catch (e) { toast.error(errorMessage(e)); }
-  };
-  return (
-    <>
-      <PageHeader title="Media library" description="Images, audio, video and documents. Bundled website images are always available in pickers." actions={flags.storage ? (
-        <label className="inline-flex"><Button loading={busy} onClick={(e) => (e.currentTarget.nextElementSibling as HTMLInputElement).click()}><Upload className="h-4 w-4" /> Upload file</Button>
-          <input type="file" hidden accept={ACCEPT_ALL} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} /></label>) : undefined} />
-      <Card className="mb-5"><CardBody className="flex flex-wrap gap-2"><Input aria-label="Image URL" className="min-w-60 flex-1" placeholder="Add an image by URL (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} /><Button variant="outline" onClick={() => void addUrl()}>Add URL</Button>
-        {!flags.storage && <p className="w-full text-xs text-muted">Uploads are turned off. Firebase Storage needs the Blaze plan; see README, then set "storage": true in src/config/features.json.</p>}</CardBody></Card>
-      {loading ? <Spinner /> : data.length === 0 ? <Card><EmptyState title="Library is empty" description="Upload an image or add one by URL." /></Card> : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">{data.map((m) => (
-          <Card key={m.id} className="overflow-hidden">{(() => { const k = kindOf(m.contentType ?? 'image/jpeg'); return k === 'audio' ? <div className="grid aspect-square place-items-center p-2"><audio controls preload="none" src={m.url} className="w-full" /></div> : k === 'video' ? <video controls preload="metadata" src={m.url} className="aspect-square w-full bg-black object-cover" /> : k === 'document' ? <a href={m.url} target="_blank" rel="noopener noreferrer" className="grid aspect-square place-items-center bg-cream text-sm font-medium text-forest-700 underline">Open file</a> : <img src={m.url} alt={m.alt || m.name} loading="lazy" className="aspect-square w-full object-cover" />; })()}
-            <div className="flex items-center justify-between gap-1 p-2"><span className="truncate text-xs">{m.name}</span>{role !== 'cms_author' && <button aria-label={`Delete ${m.name}`} onClick={() => setDel(m)}><Trash2 className="h-4 w-4 text-danger" /></button>}</div></Card>))}</div>)}
-      <ConfirmDialog open={!!del} onClose={() => setDel(null)} title="Delete file?" message="Anything using this file will stop showing it." onConfirm={async () => { if (!del) return; try { await deleteStored(del.path); await removeDoc(C.media, del.id); toast.success('Deleted'); } catch (e) { toast.error(errorMessage(e)); } setDel(null); }} />
-    </>
-  );
-}
+/* media library lives in src/features/media/MediaLibrary.tsx */
+export { MediaLibrary as CmsMedia } from '@/features/media/MediaLibrary';
 
 /* ---------------------------------------------------------- enquiries */
 export function CmsEnquiries() {
