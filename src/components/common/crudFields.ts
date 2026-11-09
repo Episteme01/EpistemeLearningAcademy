@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export type FieldType =
   | 'text' | 'textarea' | 'number' | 'email' | 'tel' | 'url' | 'date' | 'datetime'
-  | 'select' | 'ref' | 'checkbox' | 'image' | 'richtext' | 'list';
+  | 'select' | 'ref' | 'checkbox' | 'image' | 'photo' | 'richtext' | 'list';
 
 export interface Option { value: string; label: string }
 

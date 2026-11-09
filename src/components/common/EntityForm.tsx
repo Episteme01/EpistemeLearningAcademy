@@ -7,6 +7,8 @@ import { useCollection } from '@/hooks/useFirestore';
 import { buildSchema, fromFormValues, toFormValues, type FieldDef } from './crudFields';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageField } from './ImageField';
+import { PhotoControl } from './PhotoControl';
+import type { FileRef } from '@/lib/fileRef';
 import { cn } from '@/lib/utils';
 
 type Row = Record<string, unknown> & { id: string };
@@ -88,6 +90,8 @@ export function EntityForm({ fields, initial, onSubmit, onCancel, submitLabel = 
                   );
                 case 'image':
                   return <Controller control={control} name={f.name} render={({ field }) => <ImageField id={a.id} value={String(field.value ?? '')} onChange={field.onChange} />} />;
+                case 'photo':
+                  return <PhotoControl collection="students" docId={typeof initial?.id === 'string' ? initial.id : undefined} name={`${String(initial?.firstName ?? '')} ${String(initial?.lastName ?? '')}`.trim() || 'Student'} current={(initial?.photoRef as FileRef | undefined) ?? null} legacyUrl={typeof initial?.photoUrl === 'string' ? initial.photoUrl : undefined} />;
                 case 'richtext':
                   return <Controller control={control} name={f.name} render={({ field }) => <RichTextEditor id={a.id} invalid={a['aria-invalid']} value={String(field.value ?? '')} onChange={field.onChange} />} />;
                 case 'number':

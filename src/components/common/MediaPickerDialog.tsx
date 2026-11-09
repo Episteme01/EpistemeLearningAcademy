@@ -8,7 +8,10 @@ import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
 import { flags } from '@/config/env';
 import { asset } from '@/config/brand';
-import { ACCEPT_ALL, kindOf, uploadToMedia, validateUpload, type FileKind } from '@/services/storage';
+import { ACCEPT_ALL, ACCEPT_IMAGES, kindOf, uploadToMedia, type FileKind } from '@/services/storage';
+import { precheck } from '@/lib/filePolicy';
+import { useAuth } from '@/features/auth/AuthContext';
+import { UPLOADS_OFF_MESSAGE } from '@/services/files';
 import { KIND_LABEL } from '@/lib/resources';
 import { errorMessage } from '@/lib/utils';
 import type { MediaItem, MediaKind } from '@/types/models';
@@ -37,6 +40,7 @@ export function MediaPickerDialog({ open, onClose, onPick, kinds, title = 'Choos
   open: boolean; onClose: () => void; onPick: (m: PickedMedia) => void; kinds?: FileKind[]; title?: string; includeBundled?: boolean;
 }) {
   const toast = useToast();
+  const { roles } = useAuth();
   const { data, loading } = useCollection<MediaItem>(C.media, () => (open ? [] : null), open ? 'open' : 'closed');
   const [tab, setTab] = useState<'library' | 'upload'>('library');
   const [q, setQ] = useState(''); const [kind, setKind] = useState<MediaKind | ''>('');
@@ -53,11 +57,12 @@ export function MediaPickerDialog({ open, onClose, onPick, kinds, title = 'Choos
 
   const upload = async (f?: File) => {
     if (!f) return;
-    const problem = validateUpload(f, kinds && kinds.length === 1 && kinds[0] === 'image' ? { imagesOnly: true } : {});
+    if (!flags.uploads) return toast.error(UPLOADS_OFF_MESSAGE);
+    const problem = precheck('media_public', roles, f);
     if (problem) return toast.error(problem);
     const k = kindOf(f.type);
     if (!k || !allowed(k)) return toast.error(`That file type is not allowed here${kinds ? ` (allowed: ${kinds.join(', ')})` : ''}.`);
-    try { setProgress(0); const r = await uploadToMedia(f, setProgress); toast.success('Uploaded'); onPick({ id: r.id, name: r.name, url: r.url, kind: r.kind, contentType: r.contentType, size: f.size }); onClose(); }
+    try { setProgress(0); const r = await uploadToMedia(f, roles, setProgress); toast.success('Uploaded'); onPick({ id: r.id, name: r.name, url: r.url, kind: r.kind, contentType: r.contentType, size: f.size }); onClose(); }
     catch (e) { toast.error(errorMessage(e)); } finally { setProgress(null); }
   };
 
@@ -69,9 +74,9 @@ export function MediaPickerDialog({ open, onClose, onPick, kinds, title = 'Choos
       {tab === 'upload' ? (
         <div className="space-y-2 text-sm">
           <Button loading={progress !== null} onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> Choose a file to upload</Button>
-          <input ref={fileRef} type="file" hidden accept={kinds && kinds.length === 1 && kinds[0] === 'image' ? 'image/jpeg,image/png,image/webp,image/gif' : ACCEPT_ALL} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} />
+          <input ref={fileRef} type="file" hidden accept={kinds && kinds.length === 1 && kinds[0] === 'image' ? ACCEPT_IMAGES : ACCEPT_ALL} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} />
           {progress !== null && <p className="text-xs text-muted">Uploading… {progress}%</p>}
-          <p className="text-xs text-muted">Files added here go to the public media library, so anyone with the link can open them. For private study materials use the Resources centre.</p>
+          <p className="text-xs text-muted">Files added here go to the public media library (Cloudinary), so anyone with the link can open them. Only website staff can add them. For private study materials use the Resources centre.</p>
         </div>
       ) : (
         <>
