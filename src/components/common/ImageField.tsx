@@ -2,37 +2,15 @@ import { useRef, useState } from 'react';
 import { ImagePlus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/form';
-import { Dialog, useToast } from '@/components/ui/overlay';
-import { useCollection } from '@/hooks/useFirestore';
-import { C } from '@/config/collections';
+import { useToast } from '@/components/ui/overlay';
+import { MediaPickerDialog } from './MediaPickerDialog';
 import { flags } from '@/config/env';
 import { uploadToMedia, validateUpload } from '@/services/storage';
 import { errorMessage } from '@/lib/utils';
-import { asset } from '@/config/brand';
 
-interface MediaDoc { name: string; url: string; alt?: string; contentType?: string }
-
-/** Bundled images that ship with the site (always available, no Storage needed). */
-const BUNDLED = ['classroom', 'founder', 'consultation', 'islamic-study', 'digital-hub', 'curriculum', 'skills', 'ielts', 'holistic', 'flexible', 'learning']
-  .map((n) => ({ id: `b-${n}`, name: n, url: asset(`images/${n}.jpg`) }))
-  .concat(['hero', 'mentorship', 'integrating', 'graphics'].map((n) => ({ id: `b-${n}`, name: n, url: asset(`images/${n}.png`) })));
-
+/** Image picker (library images + bundled website images). Kept for existing callers; built on MediaPickerDialog. */
 export function MediaPicker({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (url: string) => void }) {
-  const { data, loading } = useCollection<MediaDoc>(C.media, () => [], 'all');
-  return (
-    <Dialog open={open} onClose={onClose} title="Choose an image" description="Media library and bundled website images" size="xl">
-      {loading ? <p className="text-sm text-muted">Loading…</p> : null}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-        {[...data.filter((m) => !m.contentType || m.contentType.startsWith('image/')).map((m) => ({ id: m.id, name: m.name, url: m.url })), ...BUNDLED].map((m) => (
-          <button key={m.id} type="button" onClick={() => { onPick(m.url); onClose(); }}
-            className="group overflow-hidden rounded-md border border-line text-left hover:border-gold-400 focus-visible:border-gold-400">
-            <img src={m.url} alt={m.name} loading="lazy" className="aspect-[4/3] w-full object-cover" />
-            <span className="block truncate px-2 py-1.5 text-xs text-muted group-hover:text-ink">{m.name}</span>
-          </button>
-        ))}
-      </div>
-    </Dialog>
-  );
+  return <MediaPickerDialog open={open} onClose={onClose} kinds={['image']} title="Choose an image" onPick={(m) => onPick(m.url)} />;
 }
 
 /** Image input: paste a URL, pick from the media library, or upload (when Storage is enabled). */
@@ -63,7 +41,7 @@ export function ImageField({ id, value, onChange }: { id?: string; value: string
       <div className="flex gap-2">
         <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://… or choose from library" />
         <Button variant="outline" onClick={() => setPicker(true)} aria-label="Choose from library"><ImagePlus className="h-4 w-4" /></Button>
-        {flags.storage && (
+        {flags.uploads && (
           <>
             <Button variant="outline" onClick={() => fileRef.current?.click()} loading={progress !== null} aria-label="Upload image"><Upload className="h-4 w-4" /></Button>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
