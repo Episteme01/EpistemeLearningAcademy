@@ -10,7 +10,9 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { createDoc, patchDoc, removeDoc } from '@/services/db';
 import { audit } from '@/services/audit';
-import { ACCEPT_ALL, deleteStored, uploadToMedia, validateUpload } from '@/services/storage';
+import { ACCEPT_ALL, deleteMediaFile, uploadToMedia } from '@/services/storage';
+import { precheck } from '@/lib/filePolicy';
+import { UPLOADS_OFF_MESSAGE } from '@/services/files';
 import { C } from '@/config/collections';
 import { flags } from '@/config/env';
 import { KIND_LABEL, normaliseTags } from '@/lib/resources';
@@ -22,7 +24,7 @@ const fmtSize = (n?: number) => (n == null ? '' : n > 1048576 ? `${(n / 1048576)
 /** Website media library: upload many files, search, filter by type or folder, edit details, copy links, delete. */
 export function MediaLibrary() {
   const toast = useToast();
-  const { role } = useAuth();
+  const { role, roles } = useAuth();
   const { data, loading } = useCollection<MediaItem>(C.media, () => [], 'all');
   const [q, setQ] = useState(''); const [kind, setKind] = useState<MediaKind | ''>(''); const [folder, setFolder] = useState('');
   const [url, setUrl] = useState('');
@@ -45,9 +47,9 @@ export function MediaLibrary() {
     if (!files?.length) return;
     const list = [...files]; let ok = 0;
     for (let i = 0; i < list.length; i += 1) {
-      const f = list[i]!; const p = validateUpload(f);
+      const f = list[i]!; const p = flags.uploads ? precheck('media_public', roles, f) : UPLOADS_OFF_MESSAGE;
       if (p) { toast.error(`${f.name}: ${p}`); continue; }
-      try { setProg({ done: i, total: list.length, pct: 0 }); await uploadToMedia(f, (pct) => setProg({ done: i, total: list.length, pct }), '', { folder: upFolder.trim(), tags: [] }); ok += 1; }
+      try { setProg({ done: i, total: list.length, pct: 0 }); await uploadToMedia(f, roles, (pct) => setProg({ done: i, total: list.length, pct }), '', { folder: upFolder.trim(), tags: [] }); ok += 1; }
       catch (e) { toast.error(`${f.name}: ${errorMessage(e)}`); }
     }
     setProg(null);
@@ -78,7 +80,7 @@ export function MediaLibrary() {
           <datalist id="media-folders">{folders.map((f) => <option key={f} value={f} />)}</datalist>
         </div>
         <div className="flex flex-wrap gap-2"><Input aria-label="Image URL" className="min-w-60 flex-1" placeholder="Or add an image by URL (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} /><Button variant="outline" onClick={() => void addUrl()}>Add URL</Button></div>
-        {!flags.uploads && <p className="text-xs text-muted">Uploads are turned off. Firebase Storage needs the Blaze plan; see README, then set "storage": true in src/config/features.json.</p>}
+        {!flags.uploads && <p className="text-xs text-muted">Uploads are not switched on yet. Set up the file service (docs/PHASE4B_FILE_STORAGE.md) and add its URL in src/config/files.json.</p>}
       </CardBody></Card>
 
       {loading ? <Spinner /> : shown.length === 0 ? <Card><EmptyState title={data.length ? 'Nothing matches your filters' : 'Library is empty'} description="Upload files or add an image by URL." /></Card> : (
@@ -106,7 +108,7 @@ export function MediaLibrary() {
           <Field label="Description">{(a) => <Textarea {...a} rows={2} value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} />}</Field>
         </div>}
       </Dialog>
-      <ConfirmDialog open={!!del} onClose={() => setDel(null)} title="Delete file?" message="Anything using this file will stop showing it." onConfirm={async () => { if (!del) return; try { await deleteStored(del.path); await removeDoc(C.media, del.id); void audit('media.delete', del.id, del.name); toast.success('Deleted'); } catch (e) { toast.error(errorMessage(e)); } setDel(null); }} />
+      <ConfirmDialog open={!!del} onClose={() => setDel(null)} title="Delete file?" message="Anything using this file will stop showing it. The stored copy is removed too." onConfirm={async () => { if (!del) return; try { await deleteMediaFile(del.ref).catch(() => undefined); await removeDoc(C.media, del.id); void audit('media.delete', del.id, del.name); toast.success('Deleted'); } catch (e) { toast.error(errorMessage(e)); } setDel(null); }} />
     </>
   );
 }
