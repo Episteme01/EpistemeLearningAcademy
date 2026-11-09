@@ -10,7 +10,9 @@ import { MediaPickerDialog, MediaPreview } from '@/components/common/MediaPicker
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { createResource, deleteResource, setPublished, updateResource, type ResourceInput } from '@/services/resources';
-import { ACCEPT_ALL, kindOf, uploadFile, validateUpload } from '@/services/storage';
+import { ACCEPT_ALL, kindOf } from '@/services/storage';
+import { UPLOADS_OFF_MESSAGE, uploadFor } from '@/services/files';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { C } from '@/config/collections';
 import { flags } from '@/config/env';
 import { KIND_LABEL, filterResources, kindFromUrl, youtubeId } from '@/lib/resources';
@@ -23,7 +25,7 @@ const sizeLabel = (n?: number) => (n == null ? '' : n > 1048576 ? `${(n / 104857
 
 /** Central resources centre: staff publish files, library items and links; learners and parents browse what is shared with them. */
 export function ResourcesPage() {
-  const { uid, role, profile } = useAuth();
+  const { uid, role, roles, profile } = useAuth();
   const toast = useToast();
   const leader = role === 'super_admin' || role === 'admin' || role === 'principal';
   const manage = leader || role === 'teacher';
@@ -56,10 +58,10 @@ export function ResourcesPage() {
 
   const onFile = async (file?: File) => {
     if (!file || !form) return;
-    const p = validateUpload(file); if (p) return toast.error(p);
+    if (!flags.uploads) return toast.error(UPLOADS_OFF_MESSAGE);
     try {
-      setProg(0); const { url, path } = await uploadFile('lms/resources', file, setProg);
-      setForm({ ...form, storagePath: path, v: { ...form.v, kind: 'file', fileKind: kindOf(file.type) ?? 'document', url, contentType: file.type, size: file.size, fileName: file.name, title: form.v.title || file.name.replace(/\.[^.]+$/, '') } });
+      setProg(0); const ref = await uploadFor('resource', file, roles, {}, setProg);
+      setForm({ ...form, storagePath: undefined, v: { ...form.v, kind: 'file', fileKind: kindOf(file.type) ?? 'document', url: '', fileRef: ref, contentType: file.type, size: file.size, fileName: file.name, title: form.v.title || file.name.replace(/\.[^.]+$/, '') } });
       toast.success('File uploaded');
     } catch (e) { toast.error(errorMessage(e)); } finally { setProg(null); }
   };
@@ -102,20 +104,14 @@ export function ResourcesPage() {
             <div className="flex flex-wrap items-center gap-2 border-t border-line p-3">
               <Button size="sm" onClick={() => setView(r)}>Open</Button>
               {canEdit(r) && <>
-                <Button size="sm" variant="outline" aria-label="Edit" onClick={() => setForm({ id: r.id, storagePath: r.storagePath, v: { title: r.title, description: r.description ?? '', kind: r.kind, fileKind: r.fileKind, url: r.url, storagePath: r.storagePath, contentType: r.contentType, size: r.size, fileName: r.fileName, subject: r.subject ?? '', courseId: r.courseId ?? '', courseName: r.courseName ?? '', classId: r.classId ?? '', className: r.className ?? '', tags: r.tags.join(', '), visibleTo: r.visibleTo, published: r.published } })}><Pencil className="h-4 w-4" /></Button>
+                <Button size="sm" variant="outline" aria-label="Edit" onClick={() => setForm({ id: r.id, storagePath: r.storagePath, v: { title: r.title, description: r.description ?? '', kind: r.kind, fileKind: r.fileKind, url: r.url, fileRef: r.fileRef ?? null, storagePath: r.storagePath, contentType: r.contentType, size: r.size, fileName: r.fileName, subject: r.subject ?? '', courseId: r.courseId ?? '', courseName: r.courseName ?? '', classId: r.classId ?? '', className: r.className ?? '', tags: r.tags.join(', '), visibleTo: r.visibleTo, published: r.published } })}><Pencil className="h-4 w-4" /></Button>
                 <Button size="sm" variant="outline" aria-label={r.published ? 'Unpublish' : 'Publish'} onClick={() => void setPublished(r, !r.published).then(() => toast.success(r.published ? 'Unpublished' : 'Published')).catch((e) => toast.error(errorMessage(e)))}>{r.published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
                 <Button size="sm" variant="outline" aria-label="Delete" onClick={() => setDel(r)}><Trash2 className="h-4 w-4 text-danger" /></Button></>}
             </div>
           </Card>))}</div>)}
 
       <Dialog open={!!view} onClose={() => setView(null)} title={view?.title ?? ''} description={view ? `${KIND_LABEL[view.fileKind]}${view.subject ? ` · ${view.subject}` : ''}` : undefined} size="xl">
-        {view && <div className="space-y-3">
-          {youtubeId(view.url) ? <iframe title={view.title} className="aspect-video w-full rounded-md" src={`https://www.youtube-nocookie.com/embed/${youtubeId(view.url)}`} allow="accelerometer; encrypted-media; picture-in-picture" allowFullScreen />
-            : view.fileKind === 'document' && /\.pdf(\?|$)|pdf/i.test(`${view.url} ${view.contentType ?? ''}`) && view.kind === 'file' ? <iframe title={view.title} src={view.url} className="h-[70vh] w-full rounded-md border border-line" />
-            : view.kind === 'file' || view.fileKind === 'image' || view.fileKind === 'audio' || view.fileKind === 'video' ? <MediaPreview item={{ name: view.title, url: view.url, kind: view.fileKind }} className="aspect-video" /> : null}
-          {view.description && <p className="whitespace-pre-line text-sm">{view.description}</p>}
-          <a href={view.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-forest-700 underline"><ExternalLink className="h-4 w-4" /> Open in a new tab / download</a>
-        </div>}
+        {view && <ResourceViewer r={view} />}
       </Dialog>
 
       <Dialog open={!!form} onClose={() => setForm(null)} title={form?.id ? 'Edit resource' : 'Add resource'} size="lg" footer={<><Button variant="outline" onClick={() => setForm(null)}>Cancel</Button><Button loading={busy} onClick={() => void save()}>Save</Button></>}>
@@ -128,9 +124,9 @@ export function ResourcesPage() {
               <Button size="sm" variant="outline" onClick={() => setPick(true)}><Library className="h-4 w-4" /> From media library</Button>
             </div>
             {prog !== null && <p className="mt-2 text-xs text-muted">Uploading… {prog}%</p>}
-            <Field label="Or paste a link (YouTube, Google Drive, website…)" className="mt-3">{(a) => <Input {...a} placeholder="https://…" value={form.v.kind === 'link' ? form.v.url : ''} onChange={(e) => setForm({ ...form, storagePath: undefined, v: { ...form.v, kind: 'link', url: e.target.value, fileKind: kindFromUrl(e.target.value), contentType: '', size: undefined, fileName: '' } })} />}</Field>
-            {form.v.url && <p className="mt-2 truncate text-xs text-muted">Selected: {form.v.fileName || form.v.url} ({KIND_LABEL[form.v.fileKind]})</p>}
-            {flags.uploads && <p className="mt-1 text-xs text-muted">Uploaded files are stored privately for signed-in users. Library files are public by link.</p>}
+            <Field label="Or paste a link (YouTube, Google Drive, website…)" className="mt-3">{(a) => <Input {...a} placeholder="https://…" value={form.v.kind === 'link' ? form.v.url : ''} onChange={(e) => setForm({ ...form, storagePath: undefined, v: { ...form.v, kind: 'link', url: e.target.value, fileRef: null, fileKind: kindFromUrl(e.target.value), contentType: '', size: undefined, fileName: '' } })} />}</Field>
+            {(form.v.url || form.v.fileRef) && <p className="mt-2 truncate text-xs text-muted">Selected: {form.v.fileName || form.v.url} ({KIND_LABEL[form.v.fileKind]}){form.v.fileRef ? ' · private' : ''}</p>}
+            <p className="mt-1 text-xs text-muted">Uploaded files are private: only people this resource is shared with can open them, through a short-lived link. Library files are public by link.</p>
           </div>
           <Field label="Title" required>{(a) => <Input {...a} value={form.v.title} onChange={(e) => set({ title: e.target.value })} />}</Field>
           <Field label="Description">{(a) => <Textarea {...a} rows={3} value={form.v.description} onChange={(e) => set({ description: e.target.value })} />}</Field>
@@ -147,8 +143,29 @@ export function ResourcesPage() {
         </div>}
       </Dialog>
       <MediaPickerDialog open={pick} onClose={() => setPick(false)} title="Pick from the media library" includeBundled={false}
-        onPick={(m) => form && setForm({ ...form, storagePath: undefined, v: { ...form.v, kind: 'file', fileKind: m.kind, url: m.url, contentType: m.contentType ?? '', size: m.size, fileName: m.name, title: form.v.title || m.name.replace(/\.[^.]+$/, '') } })} />
+        onPick={(m) => form && setForm({ ...form, storagePath: undefined, v: { ...form.v, kind: 'file', fileKind: m.kind, url: m.url, fileRef: null, contentType: m.contentType ?? '', size: m.size, fileName: m.name, title: form.v.title || m.name.replace(/\.[^.]+$/, '') } })} />
       <ConfirmDialog open={!!del} onClose={() => setDel(null)} title="Delete resource?" message="Learners will no longer see it. An uploaded file is deleted too." onConfirm={async () => { if (!del) return; try { await deleteResource(del); toast.success('Deleted'); } catch (e) { toast.error(errorMessage(e)); } setDel(null); }} />
     </>
+  );
+}
+
+/** Shows a resource. Private uploads get a short-lived signed link; the file service checks access before issuing it. */
+function ResourceViewer({ r }: { r: WithId<Resource> }) {
+  const priv = r.fileRef?.provider === 'supabase';
+  const signed = useSignedUrl('resources', r.id, priv);
+  const url = priv ? signed.url : r.url;
+  const yt = youtubeId(r.url);
+  const isPdf = /pdf/i.test(`${url ?? ''} ${r.contentType ?? ''} ${r.fileName ?? ''}`) && r.fileKind === 'document';
+  return (
+    <div className="space-y-3">
+      {priv && signed.loading && <p className="text-sm text-muted">Preparing a secure link…</p>}
+      {priv && !signed.loading && !url && <p className="text-sm text-danger">You cannot open this file right now. Sign in again, or ask your teacher.</p>}
+      {yt ? <iframe title={r.title} className="aspect-video w-full rounded-md" src={`https://www.youtube-nocookie.com/embed/${yt}`} allow="accelerometer; encrypted-media; picture-in-picture" allowFullScreen />
+        : url && isPdf ? <iframe title={r.title} src={url} className="h-[70vh] w-full rounded-md border border-line" />
+        : url && (r.kind === 'file' || ['image', 'audio', 'video'].includes(r.fileKind)) ? <MediaPreview item={{ name: r.title, url, kind: r.fileKind }} className="aspect-video" /> : null}
+      {r.description && <p className="whitespace-pre-line text-sm">{r.description}</p>}
+      {url && <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-forest-700 underline"><ExternalLink className="h-4 w-4" /> Open in a new tab / download</a>}
+      {priv && url && <p className="text-xs text-muted">This link expires in a few minutes. Reopen the resource for a fresh one.</p>}
+    </div>
   );
 }
