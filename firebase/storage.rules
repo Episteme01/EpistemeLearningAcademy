@@ -1,8 +1,8 @@
 rules_version = '2';
 
-// Cloud Storage for Firebase rules. NOTE: new Firebase projects may require the
-// Blaze (pay-as-you-go) plan to use Cloud Storage. The app works without it
-// (set VITE_ENABLE_STORAGE=false and use image URLs / bundled /images files).
+// Cloud Storage for Firebase rules. Cloud Storage requires the Blaze (pay-as-you-go)
+// plan. Without it, set "storage": false in src/config/features.json and use image
+// URLs / bundled /images files instead.
 //
 // Roles are read from Firestore users/{uid}.roles (falls back to the legacy .role).
 
@@ -14,6 +14,15 @@ service firebase.storage {
     function active() { return signedIn() && profile().status == 'active'; }
     function inRoles(rs) { return active() && roles().hasAny(rs); }
     function isImage() { return request.resource.contentType.matches('image/(jpeg|png|webp|gif)'); }
+    function isAudio() { return request.resource.contentType.matches('audio/(mpeg|mp3|mp4|x-m4a|m4a|aac|wav|x-wav|ogg|webm)'); }
+    function isVideo() { return request.resource.contentType.matches('video/(mp4|webm|quicktime)'); }
+    // Per-kind size caps: image 10 MB, document 25 MB, audio 50 MB, video 100 MB.
+    function sizeOk() {
+      return (isImage() && request.resource.size < 10 * 1024 * 1024)
+          || (isDoc() && request.resource.size < 25 * 1024 * 1024)
+          || (isAudio() && request.resource.size < 50 * 1024 * 1024)
+          || (isVideo() && request.resource.size < 100 * 1024 * 1024);
+    }
     function isDoc() {
       return request.resource.contentType.matches('application/pdf')
           || request.resource.contentType.matches('application/(msword|vnd.openxmlformats-officedocument.*|vnd.ms-powerpoint|vnd.ms-excel)')
@@ -24,7 +33,7 @@ service firebase.storage {
     match /public/{allPaths=**} {
       allow read: if true;
       allow write: if inRoles(['super_admin', 'admin', 'cms_editor', 'cms_author'])
-                   && request.resource.size < 8 * 1024 * 1024 && (isImage() || isDoc());
+                   && sizeOk();
       allow delete: if inRoles(['super_admin', 'admin', 'cms_editor']);
     }
     // Student passport photographs
@@ -36,8 +45,9 @@ service firebase.storage {
     // Course thumbnails, lesson videos/PDFs/attachments
     match /lms/{courseId}/{allPaths=**} {
       allow read: if active();
-      allow write: if inRoles(['super_admin', 'admin', 'principal', 'teacher'])
-                   && request.resource.size < 50 * 1024 * 1024 && (isImage() || isDoc() || request.resource.contentType.matches('video/.*'));
+      allow create, update: if inRoles(['super_admin', 'admin', 'principal', 'teacher'])
+                            && sizeOk();
+      allow delete: if inRoles(['super_admin', 'admin', 'principal', 'teacher']);
     }
     // Assignment submissions: owner + academic staff
     match /submissions/{uid}/{allPaths=**} {

@@ -523,6 +523,109 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+
+    // ------------------------------------------------ live-class attendance (Phase 3)
+    // Doc id = {sessionId}_{studentUid}: one record per learner per session, so duplicates are impossible.
+    // A learner can only CREATE their own record, as 'pending_verification', stamped with the SERVER clock,
+    // inside [start - 15 min, end]. They can never edit it, never touch another learner's, and never mark
+    // themselves present/absent/late. Early / on-time / late is decided from checkInAt vs the scheduled start.
+    // Only the session's teacher or a leader can verify, mark or correct, and every change needs a log entry
+    // (created in the same batch) carrying the reason.
+    function attKeys() { return ['sessionId', 'seriesId', 'studentUid', 'studentId', 'studentName', 'parentUids', 'teacherUid', 'courseId', 'classId', 'monthKey', 'scheduledStart', 'scheduledEnd', 'checkInAt', 'status', 'timing', 'method', 'verified', 'verifiedBy', 'verifiedByName', 'markedBy', 'note', 'lastLogId', 'createdAt', 'updatedAt']; }
+    function attLogAfter(lid) { return getAfter(/databases/$(database)/documents/attendanceLog/$(lid)).data; }
+    function attTeacherOrLeader(teacherUid) { return schedLeader() || (isRole('teacher') && teacherUid == uid()); }
+
+    function attSelfCreate(id) {
+      let d = request.resource.data;
+      let s = sess(d.sessionId);
+      return signedIn() && d.keys().hasOnly(attKeys())
+        && id == d.sessionId + '_' + uid()
+        && d.studentUid == uid() && uid() in s.studentUids
+        && s.status == 'scheduled'
+        && request.time >= s.startAt - duration.value(15, 'm') && request.time <= s.endAt
+        && d.checkInAt == request.time
+        && d.status == 'pending_verification' && d.method == 'self_checkin' && d.verified == false
+        && d.teacherUid == s.teacherUid && d.seriesId == s.seriesId && d.monthKey == s.monthKey
+        && d.scheduledStart == s.startAt && d.scheduledEnd == s.endAt
+        && d.parentUids is list && d.parentUids.size() <= 10 && d.parentUids.hasOnly(s.parentUids)
+        && str(d.studentName, 120);
+    }
+    function attStaffCreate(id) {
+      let d = request.resource.data;
+      let s = sess(d.sessionId);
+      return d.keys().hasOnly(attKeys())
+        && id == d.sessionId + '_' + d.studentUid
+        && attTeacherOrLeader(s.teacherUid)
+        && d.studentUid in s.studentUids
+        && request.time >= s.startAt
+        && d.status in ['present', 'absent', 'excused', 'left_early']
+        && d.method in ['teacher_marked', 'auto_finalised']
+        && d.verified == true && d.markedBy == uid()
+        && d.teacherUid == s.teacherUid && d.seriesId == s.seriesId && d.monthKey == s.monthKey
+        && d.scheduledStart == s.startAt && d.scheduledEnd == s.endAt
+        && d.parentUids is list && d.parentUids.size() <= 10 && d.parentUids.hasOnly(s.parentUids)
+        && d.timing in ['', 'early', 'on_time', 'late']
+        && attLogAfter(d.lastLogId).attendanceId == id && attLogAfter(d.lastLogId).by == uid();
+    }
+    function attStaffUpdate() {
+      let d = request.resource.data;
+      return attTeacherOrLeader(resource.data.teacherUid)
+        && onlyChanges(['status', 'timing', 'verified', 'verifiedBy', 'verifiedByName', 'method', 'note', 'lastLogId', 'updatedAt'])
+        && d.status in ['present', 'absent', 'excused', 'left_early']
+        && d.timing in ['', 'early', 'on_time', 'late']
+        && d.method in ['teacher_confirmed', 'teacher_marked', 'auto_finalised']
+        && d.verified == true && d.verifiedBy == uid()
+        && d.lastLogId != resource.data.lastLogId
+        && attLogAfter(d.lastLogId).attendanceId == request.resource.id
+        && attLogAfter(d.lastLogId).by == uid()
+        && attLogAfter(d.lastLogId).toStatus == d.status
+        && (resource.data.status == 'pending_verification' || attLogAfter(d.lastLogId).reason.size() >= 5);
+    }
+
+    match /sessionAttendance/{id} {
+      // Queries must carry the matching equality: studentUid / parentUids array-contains / teacherUid.
+      allow read: if schedViewer() || (signedIn() && (resource.data.studentUid == uid() || uid() in resource.data.parentUids || resource.data.teacherUid == uid()));
+      allow create: if attSelfCreate(id) || attStaffCreate(id);
+      allow update: if attStaffUpdate();
+      allow delete: if false;
+    }
+
+    // Append-only correction history.
+    match /attendanceLog/{id} {
+      allow create: if signedIn() && request.resource.data.by == uid() && request.resource.data.at == request.time
+                    && request.resource.data.keys().hasOnly(['attendanceId', 'sessionId', 'studentUid', 'teacherUid', 'by', 'byName', 'byRole', 'fromStatus', 'toStatus', 'fromTiming', 'toTiming', 'reason', 'at'])
+                    && request.resource.data.toStatus in ['present', 'absent', 'excused', 'left_early']
+                    && str(request.resource.data.reason, 500)
+                    && request.resource.data.teacherUid == sess(request.resource.data.sessionId).teacherUid
+                    && attTeacherOrLeader(sess(request.resource.data.sessionId).teacherUid);
+      allow read: if schedViewer() || (signedIn() && (resource.data.teacherUid == uid() || resource.data.studentUid == uid()));
+      allow update, delete: if false;
+    }
+
+
+    // ------------------------------------------------ Resources centre (Phase 4)
+    // Learners/parents see only PUBLISHED resources whose visibleTo includes their (active) role.
+    // Queries must carry where('published','==',true) and where('visibleTo','array-contains', role).
+    // Teachers and leaders manage resources; a teacher can edit/delete only their own.
+    function resLeader() { return inRoles(['super_admin', 'admin', 'principal']); }
+    function resMgr()    { return inRoles(['super_admin', 'admin', 'principal', 'teacher']); }
+    function resOk(d) {
+      return str(d.title, 150) && d.kind in ['file', 'link']
+        && d.visibleTo is list && d.visibleTo.size() <= 3 && d.visibleTo.hasOnly(['student', 'parent', 'teacher'])
+        && d.published is bool && d.tags is list && d.tags.size() <= 20
+        && str(d.url, 1500) && d.url.matches('https://.*');
+    }
+    match /resources/{id} {
+      allow read: if resLeader() || inRoles(['director', 'teacher'])
+                  || (signedIn() && resource.data.published == true
+                      && ((isRole('student') && 'student' in resource.data.visibleTo)
+                          || (isRole('parent') && 'parent' in resource.data.visibleTo)));
+      allow create: if resMgr() && request.resource.data.createdBy == uid() && resOk(request.resource.data);
+      allow update: if (resLeader() || (isRole('teacher') && resource.data.createdBy == uid()))
+                    && request.resource.data.createdBy == resource.data.createdBy && resOk(request.resource.data);
+      allow delete: if resLeader() || (isRole('teacher') && resource.data.createdBy == uid());
+    }
+
     match /notifications/{id} {
       allow read: if signedIn() && resource.data.userUid == uid();
       allow create: if isAnyStaff();
