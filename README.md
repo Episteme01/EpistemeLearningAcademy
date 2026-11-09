@@ -77,8 +77,8 @@ npm run typecheck && npm run lint && npm test && npm run build
 - **iPhone/iPad (Safari):** Share > Add to Home Screen.
 - **Updates:** every deployment is detected within about 5 minutes (or when the app is reopened) and an "Update" banner appears; it also refreshes on the next page change. Phones that still hold the old pre-PWA version update once their cache expires or after one refresh. After that, no link resending is needed. GitHub Pages is fine for this.
 
-## Media uploads (Firebase Storage)
-Uploads need the **Blaze (pay-as-you-go)** plan; the free allowance still applies (5 GB stored, 1 GB/day downloads). Steps: Firebase console > Upgrade to Blaze and set a budget alert; Build > Storage > Get started (creates the bucket); Storage > Rules > paste `firebase/storage.rules` > Publish. Limits: images 10 MB, documents 25 MB, audio 50 MB, video 100 MB. The switch is `src/config/features.json` (`"storage": true`).
+## File storage (Cloudinary + Supabase, no paid plan)
+Firebase Storage is no longer used. Public images go to Cloudinary, private files (student and parent photos, resources, assignment submissions) go to Supabase Storage, and one small Supabase Edge Function signs every upload and download after checking the Firebase login. Follow **docs/PHASE4B_FILE_STORAGE.md** step by step; until `src/config/files.json` has the function URL, upload buttons explain that uploads are not switched on yet.
 
 ## Phase 3
 See `docs/PHASE3_ATTENDANCE.md`.
