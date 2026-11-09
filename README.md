@@ -70,3 +70,15 @@ npm run typecheck && npm run lint && npm test && npm run build
 ## Documentation
 
 `docs/ARCHITECTURE.md` · `docs/FIRESTORE_SCHEMA.md` · `docs/SECURITY.md`
+
+
+## Install on a phone (PWA) and automatic updates
+- **Android (Chrome):** open the site, tap the "Install app" banner, or menu > Install app.
+- **iPhone/iPad (Safari):** Share > Add to Home Screen.
+- **Updates:** every deployment is detected within about 5 minutes (or when the app is reopened) and an "Update" banner appears; it also refreshes on the next page change. Phones that still hold the old pre-PWA version update once their cache expires or after one refresh. After that, no link resending is needed. GitHub Pages is fine for this.
+
+## Media uploads (Firebase Storage)
+Uploads need the **Blaze (pay-as-you-go)** plan; the free allowance still applies (5 GB stored, 1 GB/day downloads). Steps: upgrade the project to Blaze and set a budget alert; Firebase console > Build > Storage > Get started; publish `firebase/storage.rules` (Storage > Rules). Limits: images 10 MB, documents 25 MB, audio 50 MB, video 100 MB. The flag lives in `src/config/features.json` (`"storage": true`).
+
+## Phase 3
+See `docs/PHASE3_ATTENDANCE.md`.
