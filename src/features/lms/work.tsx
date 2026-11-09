@@ -18,7 +18,9 @@ import { SITE_URL } from '@/config/env';
 import { createDoc, getById, listDocs, patchDoc, replaceDoc } from '@/services/db';
 import { issueCertificate } from '@/services/lms';
 import { notifyUsers } from '@/services/notifications';
-import { uploadFile, validateUpload } from '@/services/storage';
+import { UPLOADS_OFF_MESSAGE, deleteFileRef, signedUrlFor, uploadFor } from '@/services/files';
+import { flags } from '@/config/env';
+import type { FileRef } from '@/lib/fileRef';
 import { gradeAttempt, type AnswerKey, type PaperQuestion } from '@/lib/cbt/grade';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
 import type { Assignment_, Course, CourseEnrollment, WithId } from './types';
@@ -177,7 +179,7 @@ function StaffAssignments() {
         {subs.loading ? <Spinner /> : subs.data.length === 0 ? <EmptyState title="No submissions yet" /> : <ul className="space-y-4">{subs.data.map((s) => (
           <li key={s.id} className="rounded-md border border-line p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{String(s.studentName)}</p><StatusBadge status={String(s.status)} /></div>
             <p className="text-xs text-muted">Submitted {fmtDate(s.submittedAt, true)}{toDate(s.submittedAt) && toDate(open?.dueAt) && toDate(s.submittedAt)! > toDate(open?.dueAt)! ? ' · LATE' : ''}</p>
-            {Boolean(s.text) && <p className="mt-2 whitespace-pre-wrap rounded bg-cream p-3 text-sm">{String(s.text)}</p>}{Boolean(s.fileUrl) && <a className="mt-2 inline-flex items-center gap-1 text-sm text-forest-500 underline" href={String(s.fileUrl)} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3.5 w-3.5" />{String(s.fileName ?? 'Open file')}</a>}
+            {Boolean(s.text) && <p className="mt-2 whitespace-pre-wrap rounded bg-cream p-3 text-sm">{String(s.text)}</p>}<SubmissionFile s={s} />
             <div className="mt-3 flex flex-wrap items-end gap-2"><Field label={`Score /${String(open?.maxScore)}`}>{(a) => <Input {...a} className="w-24" type="number" defaultValue={s.score as number | undefined} onChange={(e) => setGrade({ ...grade, [s.id]: { score: e.target.value, feedback: grade[s.id]?.feedback ?? String(s.feedback ?? '') } })} />}</Field>
               <Field label="Feedback" className="min-w-52 flex-1">{(a) => <Input {...a} defaultValue={String(s.feedback ?? '')} onChange={(e) => setGrade({ ...grade, [s.id]: { score: grade[s.id]?.score ?? String(s.score ?? ''), feedback: e.target.value } })} />}</Field><Button onClick={() => void save(s)}>Save grade</Button></div></li>))}</ul>}
       </Dialog>
@@ -186,7 +188,7 @@ function StaffAssignments() {
 }
 
 function StudentAssignments() {
-  const { uid, profile } = useAuth();
+  const { uid, profile, roles } = useAuth();
   const toast = useToast();
   const enr = useCollection<CourseEnrollment>(C.courseEnrollments, () => (uid ? [where('uid', '==', uid)] : null), uid ?? '');
   const subs = useCollection<Row>(C.submissions, () => (uid ? [where('uid', '==', uid)] : null), uid ?? '');
@@ -208,9 +210,15 @@ function StudentAssignments() {
     if (!text.trim() && !file) return toast.error('Write an answer or attach a file.');
     setBusy(true);
     try {
-      let fileUrl = '', fileName = '';
-      if (file) { const p = validateUpload(file); if (p) throw new Error(p); const up = await uploadFile(`submissions/${uid}`, file); fileUrl = up.url; fileName = file.name; }
-      await replaceDoc(C.submissions, `${sel.id}_${uid}`, { assignmentId: sel.id, uid, studentName: profile.displayName, parentUids: [], text: text.trim(), fileUrl, fileName, status: 'submitted', submittedAt: new Date() });
+      const before = subOf(sel.id) as { fileRef?: FileRef; fileName?: string; fileUrl?: string } | undefined;
+      let fileRef: FileRef | null = before?.fileRef ?? null; let fileName = before?.fileName ?? ''; let fileUrl = before?.fileUrl ?? '';
+      if (file) {
+        if (!flags.uploads) throw new Error(UPLOADS_OFF_MESSAGE);
+        fileRef = await uploadFor('submission', file, roles, { assignmentId: sel.id }); fileName = file.name; fileUrl = '';
+      }
+      await replaceDoc(C.submissions, `${sel.id}_${uid}`, { assignmentId: sel.id, uid, studentName: profile.displayName, parentUids: [], text: text.trim(), fileUrl, fileRef, fileName, status: 'submitted', submittedAt: new Date() });
+      // replacing a file: remove the old private copy only after the new submission is saved
+      if (file && before?.fileRef?.provider === 'supabase') void deleteFileRef(before.fileRef).catch(() => undefined);
       toast.success('Submitted'); setSel(null); setText(''); setFile(null);
     } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
   };
@@ -553,4 +561,16 @@ export function LmsOverview() {
       </Card>
     </>
   );
+}
+
+/** Opens a student's submitted file. Private files are fetched through a short-lived signed link. */
+function SubmissionFile({ s }: { s: { id: string; fileUrl?: unknown; fileName?: unknown; fileRef?: unknown } }) {
+  const toast = useToast();
+  const ref = s.fileRef as FileRef | undefined;
+  const label = String(s.fileName || 'Open file');
+  if (ref?.provider === 'supabase') {
+    return <Button size="sm" variant="outline" className="mt-2" onClick={() => { const w = window.open('', '_blank'); void signedUrlFor('submissions', s.id).then((u) => { if (u && w) w.location.href = u; else { w?.close(); toast.error('Could not open this file. Try again.'); } }); }}><ExternalLink className="h-3.5 w-3.5" /> {label}</Button>;
+  }
+  if (!s.fileUrl) return null;
+  return <a className="mt-2 inline-flex items-center gap-1 text-sm text-forest-500 underline" href={String(s.fileUrl)} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-3.5 w-3.5" />{label}</a>;
 }
