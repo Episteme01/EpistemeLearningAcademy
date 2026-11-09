@@ -22,9 +22,9 @@ const LINKS: Record<Role, Link_[]> = {
   cms_author: [['Write a post', '/app/cms/posts'], ['Pages', '/app/cms/pages'], ['Media', '/app/cms/media']],
   admissions: [['Admission enquiries', '/app/ems/admissions'], ['Students', '/app/ems/students'], ['Parents', '/app/ems/parents']],
   finance: [['Invoices', '/app/ems/invoices'], ['Payments', '/app/ems/payments'], ['Fee structures', '/app/ems/fee-structures']],
-  teacher: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Enter scores', '/app/ems/results'], ['Attendance', '/app/ems/attendance'], ['My courses', '/app/lms/courses'], ['Question bank', '/app/cbt/questions'], ['Examinations', '/app/cbt/exams']],
-  parent: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['My children', '/app/ems/children'], ['Announcements', '/app/ems/news'], ['Learning progress', '/app/lms/progress']],
-  student: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['My examinations', '/app/cbt/my-exams'], ['My learning', '/app/lms/my-courses'], ['Assignments', '/app/lms/assignments'], ['My records', '/app/ems/my'], ['Live classes', '/app/lms/live']],
+  teacher: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['Enter scores', '/app/ems/results'], ['Attendance', '/app/ems/attendance'], ['My courses', '/app/lms/courses'], ['Question bank', '/app/cbt/questions'], ['Examinations', '/app/cbt/exams']],
+  parent: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['My children', '/app/ems/children'], ['Announcements', '/app/ems/news'], ['Learning progress', '/app/lms/progress']],
+  student: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['My examinations', '/app/cbt/my-exams'], ['My learning', '/app/lms/my-courses'], ['Assignments', '/app/lms/assignments'], ['My records', '/app/ems/my'], ['Live classes', '/app/lms/live']],
 };
 const NOTE: Partial<Record<Role, string>> = {
   super_admin: 'You have full access. Create accounts under Users & access and assign roles.',
