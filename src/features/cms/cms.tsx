@@ -15,7 +15,7 @@ import { useCollection, useDocument } from '@/hooks/useFirestore';
 import { useSettings } from '@/hooks/useSettings';
 import { patchDoc, createDoc, removeDoc } from '@/services/db';
 import { audit } from '@/services/audit';
-import { uploadToMedia, validateUpload, deleteStored } from '@/services/storage';
+import { uploadToMedia, validateUpload, deleteStored, kindOf, ACCEPT_ALL } from '@/services/storage';
 import { db } from '@/config/firebase';
 import { C } from '@/config/collections';
 import { flags } from '@/config/env';
@@ -208,13 +208,13 @@ export const CmsSettings = () => <SettingsForm id="site" title="Website settings
 export function CmsMedia() {
   const toast = useToast();
   const { role } = useAuth();
-  const { data, loading } = useCollection<{ name: string; url: string; path?: string; alt?: string }>(C.media, () => [], 'all');
+  const { data, loading } = useCollection<{ name: string; url: string; path?: string; alt?: string; contentType?: string; size?: number }>(C.media, () => [], 'all');
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [del, setDel] = useState<(typeof data)[number] | null>(null);
   const upload = async (f?: File) => {
     if (!f) return;
-    const p = validateUpload(f, { imagesOnly: true });
+    const p = validateUpload(f);
     if (p) return toast.error(p);
     setBusy(true);
     try { await uploadToMedia(f); toast.success('Uploaded'); } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
@@ -225,16 +225,16 @@ export function CmsMedia() {
   };
   return (
     <>
-      <PageHeader title="Media library" description="Images used across the website. Bundled website images are always available in pickers." actions={flags.storage ? (
-        <label className="inline-flex"><Button loading={busy} onClick={(e) => (e.currentTarget.nextElementSibling as HTMLInputElement).click()}><Upload className="h-4 w-4" /> Upload image</Button>
-          <input type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} /></label>) : undefined} />
+      <PageHeader title="Media library" description="Images, audio, video and documents. Bundled website images are always available in pickers." actions={flags.storage ? (
+        <label className="inline-flex"><Button loading={busy} onClick={(e) => (e.currentTarget.nextElementSibling as HTMLInputElement).click()}><Upload className="h-4 w-4" /> Upload file</Button>
+          <input type="file" hidden accept={ACCEPT_ALL} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} /></label>) : undefined} />
       <Card className="mb-5"><CardBody className="flex flex-wrap gap-2"><Input aria-label="Image URL" className="min-w-60 flex-1" placeholder="Add an image by URL (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} /><Button variant="outline" onClick={() => void addUrl()}>Add URL</Button>
-        {!flags.storage && <p className="w-full text-xs text-muted">Uploads are disabled (VITE_ENABLE_STORAGE=false).</p>}</CardBody></Card>
+        {!flags.storage && <p className="w-full text-xs text-muted">Uploads are turned off. Firebase Storage needs the Blaze plan; see README, then set "storage": true in src/config/features.json.</p>}</CardBody></Card>
       {loading ? <Spinner /> : data.length === 0 ? <Card><EmptyState title="Library is empty" description="Upload an image or add one by URL." /></Card> : (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">{data.map((m) => (
-          <Card key={m.id} className="overflow-hidden"><img src={m.url} alt={m.alt || m.name} loading="lazy" className="aspect-square w-full object-cover" />
+          <Card key={m.id} className="overflow-hidden">{(() => { const k = kindOf(m.contentType ?? 'image/jpeg'); return k === 'audio' ? <div className="grid aspect-square place-items-center p-2"><audio controls preload="none" src={m.url} className="w-full" /></div> : k === 'video' ? <video controls preload="metadata" src={m.url} className="aspect-square w-full bg-black object-cover" /> : k === 'document' ? <a href={m.url} target="_blank" rel="noopener noreferrer" className="grid aspect-square place-items-center bg-cream text-sm font-medium text-forest-700 underline">Open file</a> : <img src={m.url} alt={m.alt || m.name} loading="lazy" className="aspect-square w-full object-cover" />; })()}
             <div className="flex items-center justify-between gap-1 p-2"><span className="truncate text-xs">{m.name}</span>{role !== 'cms_author' && <button aria-label={`Delete ${m.name}`} onClick={() => setDel(m)}><Trash2 className="h-4 w-4 text-danger" /></button>}</div></Card>))}</div>)}
-      <ConfirmDialog open={!!del} onClose={() => setDel(null)} title="Delete image?" message="Pages using this image will show a broken image." onConfirm={async () => { if (!del) return; try { await deleteStored(del.path); await removeDoc(C.media, del.id); toast.success('Deleted'); } catch (e) { toast.error(errorMessage(e)); } setDel(null); }} />
+      <ConfirmDialog open={!!del} onClose={() => setDel(null)} title="Delete file?" message="Anything using this file will stop showing it." onConfirm={async () => { if (!del) return; try { await deleteStored(del.path); await removeDoc(C.media, del.id); toast.success('Deleted'); } catch (e) { toast.error(errorMessage(e)); } setDel(null); }} />
     </>
   );
 }
