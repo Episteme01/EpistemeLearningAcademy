@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { InstallBanner } from '@/components/common/InstallApp';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight, ExternalLink, LogOut, Menu, X } from 'lucide-react';
 import { BRAND } from '@/config/brand';
@@ -179,6 +180,7 @@ export function PortalLayout() {
           </nav>
         </header>
         <main id="main" className="mx-auto max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
+          <InstallBanner className="mb-4" />
           <Outlet />
         </main>
       </div>
