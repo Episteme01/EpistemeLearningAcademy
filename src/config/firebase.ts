@@ -7,7 +7,6 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig, firebaseConfigured } from './env';
 
 let _app: FirebaseApp | null = null;
@@ -44,6 +43,3 @@ export function db(): Firestore {
   return _db;
 }
 
-export function storage(): FirebaseStorage {
-  return getStorage(fbApp());
-}

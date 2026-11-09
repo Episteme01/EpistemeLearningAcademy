@@ -16,7 +16,7 @@ export interface FirebaseWebConfig {
 }
 
 import fileConfig from './firebase-config.json';
-import features from './features.json';
+import filesConfig from './files.json';
 
 const env = import.meta.env;
 
@@ -47,10 +47,12 @@ export const firebaseConfig: Partial<FirebaseWebConfig> = {
 
 export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 
+/** Public URL of the file gateway. Env var wins over src/config/files.json. */
+export const filesGatewayUrl: string = ((env.VITE_FILES_GATEWAY_URL as string | undefined) ?? filesConfig.gatewayUrl ?? '').trim().replace(/\/+$/, '');
+
 export const flags = {
-  /** True when file uploads are available (Cloud Storage for Firebase, Blaze plan). */
-  // features.json decides by default; VITE_ENABLE_STORAGE ('true'/'false') overrides it.
-  uploads: env.VITE_ENABLE_STORAGE === 'true' ? true : env.VITE_ENABLE_STORAGE === 'false' ? false : features.storage,
+  /** True when the file gateway (Supabase Edge Function) is configured. File uploads need it. */
+  uploads: filesGatewayUrl !== '',
   /** Server-side CBT grading through Cloud Functions (Blaze plan) */
   functions: env.VITE_USE_CLOUD_FUNCTIONS === 'true',
 };

@@ -39,6 +39,7 @@ export const NAV: NavItem[] = [
   { label: 'Homepage & hero', to: '/app/cms/homepage', icon: PenSquare, platform: 'cms', roles: CMS_PUB, group: 'Site' },
   { label: 'Navigation', to: '/app/cms/navigation', icon: MenuIcon, platform: 'cms', roles: CMS_PUB, group: 'Site' },
   { label: 'Media library', to: '/app/cms/media', icon: Image, platform: 'cms', roles: CMS_ALL, group: 'Site' },
+  { label: 'Storage inventory', to: '/app/storage-inventory', icon: Library, platform: 'cms', roles: ['super_admin'], group: 'Site' },
   { label: 'Website settings', to: '/app/cms/settings', icon: Settings, platform: 'cms', roles: CMS_PUB, group: 'Site' },
   { label: 'Contact enquiries', to: '/app/cms/enquiries', icon: Inbox, platform: 'cms', roles: [...CMS_PUB, 'principal'], group: 'Inbox' },
 

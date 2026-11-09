@@ -1,7 +1,7 @@
 /**
  * Role model + client-side capability map.
  * IMPORTANT: this only controls what the UI shows. Real enforcement is done by
- * firebase/firestore.rules and firebase/storage.rules — keep them in sync.
+ * firebase/firestore.rules (and supabase/functions/files/policy.ts for file uploads) — keep them in sync.
  */
 export type Role =
   | 'super_admin'
