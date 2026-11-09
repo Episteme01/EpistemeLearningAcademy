@@ -12,6 +12,7 @@ import { ROLE_LABELS } from '@/config/permissions';
 import { cancelSessions, logAccess, markCompleted, readLink, rescheduleSession, type Scope } from '@/services/schedule';
 import { format12, utcToZoned } from '@/lib/schedule/tz';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
+import { AttendancePanel } from './AttendancePanel';
 import type { Session, SessionAccessLog, SessionLink, WithId } from '@/types/models';
 
 const JOIN_BEFORE = 15 * 60_000;
@@ -85,6 +86,8 @@ export function SessionDialog({ session, tz, onClose, onEdit }: { session: WithI
                 </div>)}
               <p className="mt-2 text-xs text-muted">Opening the link is recorded, but it is not proof of attendance.</p>
             </div>)}
+
+          <AttendancePanel session={session} />
 
           {canManage && (
             <div className="flex flex-wrap gap-2 border-t border-line pt-3">
