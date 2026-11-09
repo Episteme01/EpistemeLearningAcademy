@@ -1,3 +1,4 @@
+import { SecureAvatar } from '@/components/common/SecureAvatar';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link2, KeyRound, ArrowUpRight, UserPlus } from 'lucide-react';
@@ -5,7 +6,7 @@ import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { Button } from '@/components/ui/button';
 import { Dialog, useToast } from '@/components/ui/overlay';
 import { Field, Input, Select } from '@/components/ui/form';
-import { Avatar, StatusBadge } from '@/components/ui/data';
+import { StatusBadge } from '@/components/ui/data';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
@@ -85,10 +86,10 @@ export function StudentsPage() {
       { name: 'status', label: 'Student status', type: 'select', required: true, defaultValue: 'active', options: ['active', 'suspended', 'inactive'].map((v) => ({ value: v, label: v })) },
       { name: 'guardianPhone', label: 'Guardian phone', type: 'tel' }, { name: 'address', label: 'Address', type: 'text', span: 2 },
       { name: 'stateOfOrigin', label: 'State of origin', type: 'text' }, { name: 'religion', label: 'Religion', type: 'text' }, { name: 'bloodGroup', label: 'Blood group', type: 'text' }, { name: 'allergies', label: 'Allergies / medical notes', type: 'textarea' },
-      { name: 'photoUrl', label: 'Photograph', type: 'image' },
+      { name: 'photoRef', label: 'Photograph (private)', type: 'photo' },
     ],
     columns: [
-      { key: 'n', header: 'Student', primary: true, cell: (r) => <div className="flex items-center gap-3"><Avatar name={fullName(r)} src={r.photoUrl} /><div><p className="font-medium">{fullName(r)}</p><p className="text-xs text-muted">{r.studentNo}</p></div></div> },
+      { key: 'n', header: 'Student', primary: true, cell: (r) => <div className="flex items-center gap-3"><SecureAvatar name={fullName(r)} collection="students" docId={r.id} photoRef={r.photoRef} legacyUrl={r.photoUrl} /><div><p className="font-medium">{fullName(r)}</p><p className="text-xs text-muted">{r.studentNo}</p></div></div> },
       { key: 'c', header: 'Class', cell: (r) => r.className ?? '—' }, { key: 'a', header: 'Admission', cell: (r) => <StatusBadge status={r.admissionStatus} /> }, { key: 's', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
       { key: 'p', header: 'Parents', cell: (r) => (r.parentIds ?? []).length },
     ],

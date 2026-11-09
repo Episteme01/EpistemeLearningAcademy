@@ -1,3 +1,4 @@
+import { SecureAvatar } from '@/components/common/SecureAvatar';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { where } from 'firebase/firestore';
@@ -5,7 +6,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Too
 import { Receipt as ReceiptIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardBody, CardHeader, PageHeader, StatCard } from '@/components/ui/card';
-import { Avatar, EmptyState, Progress, Spinner, StatusBadge, Tabs, TableWrap, Td, Th } from '@/components/ui/data';
+import { EmptyState, Progress, Spinner, StatusBadge, Tabs, TableWrap, Td, Th } from '@/components/ui/data';
 import { Dialog } from '@/components/ui/overlay';
 import { EntityForm } from '@/components/common/EntityForm';
 import { useToast } from '@/components/ui/overlay';
@@ -56,7 +57,7 @@ export function ChildPortal({ student }: { student: WithId<Student> }) {
 
   return (
     <div>
-      <Card className="mb-5"><CardBody className="flex flex-wrap items-center gap-4"><Avatar name={fullName(student)} src={student.photoUrl} size={56} />
+      <Card className="mb-5"><CardBody className="flex flex-wrap items-center gap-4"><SecureAvatar name={fullName(student)} collection="students" docId={student.id} photoRef={student.photoRef} legacyUrl={student.photoUrl} size={56} />
         <div className="min-w-0 flex-1"><h2 className="text-xl font-semibold">{fullName(student)}</h2><p className="text-sm text-muted">{student.studentNo} · {student.className ?? 'No class'} · <StatusBadge status={student.status} /></p></div>
         <div className="grid grid-cols-3 gap-4 text-center"><div><p className="text-xs text-muted">Attendance</p><p className="font-heading font-semibold">{attSum.rate}%</p></div><div><p className="text-xs text-muted">Outstanding</p><p className={`font-heading font-semibold ${owing > 0 ? 'text-danger' : ''}`}>{fmtMoney(owing)}</p></div><div><p className="text-xs text-muted">Courses</p><p className="font-heading font-semibold">{enr.data.length}</p></div></div></CardBody></Card>
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
