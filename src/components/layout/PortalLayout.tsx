@@ -1,3 +1,4 @@
+import { SecureAvatar } from '@/components/common/SecureAvatar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InstallBanner } from '@/components/common/InstallApp';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { BRAND } from '@/config/brand';
 import { NAV, navFor, platformsFor } from '@/config/nav';
 import { PLATFORM_DESCRIPTIONS, PLATFORM_LABELS, ROLE_LABELS, ROLE_PLATFORMS, type Platform } from '@/config/permissions';
 import { useAuth } from '@/features/auth/AuthContext';
-import { Avatar } from '@/components/ui/data';
 import { Notifications } from './Notifications';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +16,7 @@ function platformOf(pathname: string): Platform {
 }
 
 export function PortalLayout() {
-  const { profile, role, roles, switchRole, logout } = useAuth();
+  const { profile, uid, role, roles, switchRole, logout } = useAuth();
   const { pathname } = useLocation();
   const nav = useNavigate();
   const [drawer, setDrawer] = useState(false);
@@ -141,7 +141,7 @@ export function PortalLayout() {
               <Notifications />
               <div className="relative" ref={menuRef}>
                 <button onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-haspopup="menu" className="flex items-center gap-2 rounded-md p-1.5 hover:bg-forest-50">
-                  <Avatar name={profile?.displayName ?? '?'} src={profile?.photoUrl} />
+                  <SecureAvatar name={profile?.displayName ?? '?'} collection="users" docId={uid ?? undefined} photoRef={profile?.photoRef} legacyUrl={profile?.photoUrl} />
                   <span className="hidden text-left leading-tight sm:block">
                     <span className="block text-[13px] font-medium">{profile?.displayName}</span>
                     <span className="block text-[11px] text-muted">{role ? ROLE_LABELS[role] : ''}</span>
