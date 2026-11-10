@@ -23,6 +23,9 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
   return data;
 }
 
+/** Lets other services (e.g. password reset) call the same gateway. */
+export const gatewayCall = call;
+
 export interface UploadContext { studentId?: string; assignmentId?: string }
 export type Roles = string[];
 
