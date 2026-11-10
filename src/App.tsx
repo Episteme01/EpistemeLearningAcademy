@@ -25,6 +25,8 @@ import { Dashboard } from '@/features/dashboards/Dashboard';
 import { CalendarPage } from '@/features/schedule/Calendar';
 import { AttendancePage } from '@/features/attendance/AttendancePage';
 import { ResourcesPage } from '@/features/resources/ResourcesPage';
+import { PaymentReturn } from '@/features/pay/PaymentReturn';
+import { ReportsPage } from '@/features/reports/ReportsPage';
 import { NoticesPage } from '@/features/notices/NoticesPage';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
 import { StorageInventory } from '@/features/media/StorageInventory';
@@ -42,6 +44,7 @@ export function App() {
   return (
     <>
     <UpdateBanner />
+    <PaymentReturn />
     <Routes>
       <Route element={<PublicLayout />}>
         <Route index element={<P.HomePage />} />
@@ -74,6 +77,7 @@ export function App() {
         <Route path="cms/navigation" element={guard('/app/cms/navigation', <Cms.CmsNavigation />)} />
         <Route path="cms/media" element={guard('/app/cms/media', <Cms.CmsMedia />)} />
         <Route path="notices" element={guard('/app/notices', <NoticesPage />)} />
+        <Route path="reports" element={guard('/app/reports', <ReportsPage />)} />
         <Route path="analytics" element={guard('/app/analytics', <AnalyticsPage />)} />
         <Route path="storage-inventory" element={guard('/app/storage-inventory', <StorageInventory />)} />
         <Route path="cms/settings" element={guard('/app/cms/settings', <Cms.CmsSettings />)} />
