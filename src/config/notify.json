@@ -1,1 +1,5 @@
-{ "vapidPublicKey": "" }
+{
+  "vapidPublicKey": "",
+  "notifyUrl": "",
+  "_note": "notifyUrl is optional: leave empty to use https://<project-ref>.supabase.co/functions/v1/notify. vapidPublicKey is the PUBLIC push key only. Never put a private key here."
+}
