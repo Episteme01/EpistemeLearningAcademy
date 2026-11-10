@@ -23,7 +23,7 @@ Free tier only. Backend = one more Supabase Edge Function (`notify`) + Supabase 
    | `SITE_URL` | https://episteme01.github.io/epistemelearningacademy |
    | `VAPID_SUBJECT` | mailto:your-email |
    (`FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`, `ALLOWED_ORIGINS` already exist from Phase 4B / student login.)
-3. **Deploy**: `supabase functions deploy notify --no-verify-jwt` (or paste `supabase/functions/notify/index.ts` and `logic.ts` into the dashboard editor and turn JWT verification off).
+3. **Deploy** (the function must be named exactly `notify`; your file service can keep its own name): `supabase functions deploy notify --no-verify-jwt` (or paste `supabase/functions/notify/index.ts` and `logic.ts` into the dashboard editor and turn JWT verification off).
 4. **Cron**: open `supabase/migrations/002_cron.sql`, replace `YOUR_PROJECT_REF` and `YOUR_CRON_SECRET`, run it in SQL Editor.
 5. **Firestore rules**: publish `firebase/firestore.rules`.
 6. **Phone alerts (optional)**: sign in as super admin > Notices > Reminder settings > *Generate phone-alert keys*. Put the **private** key in Supabase secret `VAPID_PRIVATE_KEY`, the **public** key in secret `VAPID_PUBLIC_KEY` and in `src/config/notify.json`, then redeploy the site. iPhones only get alerts after Add to Home Screen.
