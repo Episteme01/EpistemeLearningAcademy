@@ -317,7 +317,8 @@ service cloud.firestore {
     match /assignments/{id} {
       allow read: if isAcademicStaff()
                   || (isRole('student') && ((resource.data.get('courseId', '') != '' && enrolled(resource.data.courseId))
-                                            || resource.data.get('classId', '') == myClassId()));
+                                            || resource.data.get('classId', '') == myClassId()))
+                  || (isRole('parent') && (uid() in resource.data.get('parentViewers', [])));
       allow create: if isAcademicLeader() || (isRole('teacher') && request.resource.data.teacherUid == uid());
       allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.teacherUid == uid());
     }
@@ -329,17 +330,23 @@ service cloud.firestore {
              || (d.fileRef.provider == 'supabase' && d.fileRef.bucket == 'submissions'
                  && d.fileRef.path.matches(d.uid + '/' + d.assignmentId + '/.*'));
     }
+    // Deadline is enforced by the server clock: late work is refused unless the assignment allows it.
+    function subOnTime(d) {
+      let a = get(/databases/$(database)/documents/assignments/$(d.assignmentId)).data;
+      return a.get('allowLate', true) == true || request.time <= a.dueAt;
+    }
     match /submissions/{id} {
       allow read: if isAcademicStaff() || isOwnerOf(resource.data) || isParentOf(resource.data);
       allow create: if isRole('student') && request.resource.data.uid == uid()
                     && id == request.resource.data.assignmentId + '_' + uid()
                     && request.resource.data.status == 'submitted'
                     && !('score' in request.resource.data)
-                    && subFileOk(request.resource.data);
+                    && subFileOk(request.resource.data)
+                    && subOnTime(request.resource.data);
       allow update: if isAcademicStaff()
         || (isOwnerOf(resource.data) && resource.data.status != 'graded'
             && request.resource.data.status == 'submitted' && !('score' in request.resource.data)
-            && subFileOk(request.resource.data));
+            && subFileOk(request.resource.data) && subOnTime(request.resource.data));
       allow delete: if isAcademicLeader();
     }
 
@@ -642,6 +649,32 @@ service cloud.firestore {
                     && request.resource.data.createdBy == resource.data.createdBy && resOk(request.resource.data);
       allow delete: if resLeader() || (isRole('teacher') && resource.data.createdBy == uid());
     }
+
+    // ---- Notices, push subscriptions and notification preferences (Phase 5) ----
+    // Notices are queued by staff and delivered by the Supabase notify function (which fills recipientUids).
+    match /notices/{id} {
+      allow read: if inRoles(['super_admin', 'admin', 'principal', 'director']) || (signedIn() && (uid() in resource.data.get('recipientUids', [])))
+                  || (isRole('teacher') && resource.data.createdBy == uid());
+      allow create: if inRoles(['super_admin', 'admin', 'principal', 'teacher'])
+                    && request.resource.data.status == 'queued'
+                    && request.resource.data.createdBy == uid()
+                    && !('recipientUids' in request.resource.data)
+                    && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120
+                    && request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 2000
+                    && (inRoles(['super_admin', 'admin', 'principal'])
+                        || request.resource.data.audience in ['class_parents', 'class_students', 'class_both']);
+      allow update: if false;
+      allow delete: if inRoles(['super_admin', 'admin', 'principal']) || (signedIn() && resource.data.createdBy == uid());
+    }
+    match /pushSubscriptions/{id} {
+      allow create: if signedIn() && request.resource.data.uid == uid() && id.matches(uid() + '_.*');
+      allow read, delete: if signedIn() && resource.data.uid == uid();
+      allow update: if false;
+    }
+    match /notificationPrefs/{id} {
+      allow read, write: if signedIn() && id == uid();
+    }
+    // reminderLog is written only by the server (no client rule).
 
     match /notifications/{id} {
       allow read: if signedIn() && resource.data.userUid == uid();
