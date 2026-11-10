@@ -20,6 +20,9 @@ export interface UserProfile {
   photoRef?: FileRef;
   /** link to students/{id} for student accounts */
   studentId?: string;
+  /** learners without an email sign in with this username (their Firebase email is a hidden internal one) */
+  username?: string;
+  loginType?: 'email' | 'username';
   /** class of a student account (denormalised for security rules) */
   classId?: string;
   staffId?: string;
@@ -50,8 +53,15 @@ export interface Student {
   genotype?: string;
   allergies?: string;
   guardianPhone?: string;
+  /** adult learners sign in with their own email; everyone else uses a username */
+  isAdult?: boolean;
+  /** username for learners who sign in without an email */
+  username?: string;
   /** auth uid of the student's own login (or '') */
   studentUid: string;
+  /** auth uids / staff ids of linked teachers */
+  teacherUids?: string[];
+  teacherIds?: string[];
   /** auth uids of linked parents/guardians */
   parentUids: string[];
   /** parents/{id} documents */
