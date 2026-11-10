@@ -1,3 +1,6 @@
 # Only the Edge Function settings the project needs. Firebase tokens are verified inside the function.
 [functions.files]
 verify_jwt = false
+
+[functions.notify]
+verify_jwt = false
