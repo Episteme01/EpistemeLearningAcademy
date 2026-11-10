@@ -1,4 +1,4 @@
-import { arrayUnion, doc, runTransaction, serverTimestamp, where, addDoc, collection } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, runTransaction, serverTimestamp, where, addDoc, collection } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { C } from '@/config/collections';
 import { batchSet, clean, getById, listDocs, patchDoc } from './db';
@@ -19,6 +19,24 @@ export async function linkParent(parent: WithId<Parent>, student: WithId<Student
   });
   await patchDoc(C.parents, parent.id, { studentIds: arrayUnion(student.id) });
   void audit('student.link_parent', `students/${student.id}`, parent.id);
+}
+
+/** Remove a parent link on both sides. */
+export async function unlinkParent(parent: WithId<Parent>, student: WithId<Student>) {
+  await patchDoc(C.students, student.id, { parentIds: arrayRemove(parent.id), ...(parent.userUid ? { parentUids: arrayRemove(parent.userUid) } : {}) });
+  await patchDoc(C.parents, parent.id, { studentIds: arrayRemove(student.id) });
+  void audit('student.unlink_parent', `students/${student.id}`, parent.id);
+}
+
+/** Link a teacher (a staff member with a login) to a student. */
+export async function linkTeacher(staff: { id: string; userUid?: string }, student: WithId<Student>) {
+  if (!staff.userUid) throw new Error('This staff member has no login yet. Create their login first.');
+  await patchDoc(C.students, student.id, { teacherIds: arrayUnion(staff.id), teacherUids: arrayUnion(staff.userUid) });
+  void audit('student.link_teacher', `students/${student.id}`, staff.id);
+}
+export async function unlinkTeacher(staff: { id: string; userUid?: string }, student: WithId<Student>) {
+  await patchDoc(C.students, student.id, { teacherIds: arrayRemove(staff.id), ...(staff.userUid ? { teacherUids: arrayRemove(staff.userUid) } : {}) });
+  void audit('student.unlink_teacher', `students/${student.id}`, staff.id);
 }
 
 /** After creating a parent login, copy its uid onto every linked student. */

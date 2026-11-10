@@ -20,6 +20,8 @@ export interface NewAccount {
   staffId?: string;
   parentId?: string;
   devOnly?: boolean;
+  /** set for learners who sign in with a username instead of an email */
+  username?: string;
   sendResetEmail?: boolean;
 }
 
@@ -51,11 +53,12 @@ export async function createAccount(acc: NewAccount): Promise<string> {
         staffId: acc.staffId ?? '',
         parentId: acc.parentId ?? '',
         devOnly: acc.devOnly ?? false,
+        ...(acc.username ? { username: acc.username, loginType: 'username' } : { loginType: 'email' }),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
     }
-    if (acc.sendResetEmail) await sendPasswordResetEmail(sAuth, acc.email.trim()).catch(() => undefined);
+    if (acc.sendResetEmail && !acc.username) await sendPasswordResetEmail(sAuth, acc.email.trim()).catch(() => undefined);
     await signOut(sAuth);
     await audit('account.create', `users/${uid}`, `${acc.role}: ${acc.email}`);
     return uid;
