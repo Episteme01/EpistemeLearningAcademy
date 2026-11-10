@@ -188,6 +188,7 @@ export function StudentsPage() {
       { name: 'firstName', label: 'First name', type: 'text', required: true }, { name: 'lastName', label: 'Surname', type: 'text', required: true }, { name: 'otherNames', label: 'Other names', type: 'text' },
       { name: 'gender', label: 'Gender', type: 'select', required: true, options: [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }] }, { name: 'dob', label: 'Date of birth', type: 'date' },
       classRef(), { name: 'programme', label: 'Programme', type: 'select', options: ['Academic', 'Islamic', 'Academic + Islamic', 'Coding / ICT', 'Skills'].map((v) => ({ value: v, label: v })) },
+      { name: 'admittedAt', label: 'Date of admission', type: 'date', hint: 'Shown on the admission letter. Set the real date for learners who joined earlier. Leave empty for today.' },
       { name: 'admissionStatus', label: 'Admission status', type: 'select', required: true, defaultValue: 'enrolled', options: ['applicant', 'admitted', 'enrolled', 'graduated', 'withdrawn'].map((v) => ({ value: v, label: v })) },
       { name: 'status', label: 'Student status', type: 'select', required: true, defaultValue: 'active', options: ['active', 'suspended', 'inactive'].map((v) => ({ value: v, label: v })) },
       { name: 'isAdult', label: 'Adult learner (signs in with their own email)', type: 'checkbox', hint: 'Leave unticked for children. They sign in with a username and password.' },
@@ -211,8 +212,9 @@ export function StudentsPage() {
         const other = same.find((s) => s.id !== existing?.id);
         if (other) throw new Error(`Admission number ${no} already belongs to ${fullName(other)}.`);
       }
-      if (existing) return { ...p, studentNo: no };
-      return { ...p, studentNo: no, studentUid: '', parentUids: [], parentIds: [], admittedAt: new Date().toISOString().slice(0, 10) };
+      const admittedAt = String(p.admittedAt ?? '').trim() || existing?.admittedAt || new Date().toISOString().slice(0, 10);
+      if (existing) return { ...p, studentNo: no, admittedAt };
+      return { ...p, studentNo: no, studentUid: '', parentUids: [], parentIds: [], admittedAt };
     },
     afterSave: async (id, p, existing) => {
       if (existing && (existing.classId !== p.classId || existing.status !== p.status)) {
@@ -358,6 +360,7 @@ export const ClassesPage = () => {
     fields: [
       { name: 'name', label: 'Class name', type: 'text', required: true, placeholder: 'JSS 1' }, { name: 'level', label: 'Level', type: 'select', required: true, options: CLASS_LEVELS.map((v) => ({ value: v, label: v })) },
       { name: 'arm', label: 'Arm / section', type: 'text' }, { name: 'capacity', label: 'Capacity', type: 'number', min: 1 },
+      { name: 'subjectIds', label: 'Subjects offered by this class', type: 'multiref', ref: { collection: C.subjects, label: (r) => `${String(r.name)}${r.code ? ` (${String(r.code)})` : ''}`, labelField: 'subjectNames' }, hint: 'Tick as many as you need. Teachers enter scores for these subjects.' },
       { name: 'classTeacherId', label: 'Class teacher', type: 'ref', ref: { collection: C.staff, label: (r) => `${String(r.firstName)} ${String(r.lastName)}${r.userUid ? '' : ' (no login)'}` }, hint: 'The teacher needs a portal login to mark attendance.' },
     ],
     beforeSave: async (p) => {
@@ -365,7 +368,7 @@ export const ClassesPage = () => {
       const t = await getById<Staff>(C.staff, String(p.classTeacherId));
       return { ...p, classTeacherUid: t?.userUid ?? '', classTeacherName: t ? `${t.firstName} ${t.lastName}` : '' };
     },
-    columns: [{ key: 'n', header: 'Class', primary: true, cell: (r: Row & { name: string }) => <span className="font-medium">{r.name}</span> }, { key: 'l', header: 'Level', cell: (r: Row & { level?: string }) => r.level }, { key: 't', header: 'Class teacher', cell: (r: Row & { classTeacherName?: string }) => r.classTeacherName || '—' }, { key: 'c', header: 'Capacity', cell: (r: Row & { capacity?: number }) => r.capacity ?? '—' }],
+    columns: [{ key: 'n', header: 'Class', primary: true, cell: (r: Row & { name: string }) => <span className="font-medium">{r.name}</span> }, { key: 'l', header: 'Level', cell: (r: Row & { level?: string }) => r.level }, { key: 't', header: 'Class teacher', cell: (r: Row & { classTeacherName?: string }) => r.classTeacherName || '—' }, { key: 'sj', header: 'Subjects', cell: (r: Row & { subjectIds?: string[] }) => (r.subjectIds ?? []).length }, { key: 'c', header: 'Capacity', cell: (r: Row & { capacity?: number }) => r.capacity ?? '—' }],
     searchKeys: ['name', 'level'],
   } as CrudConfig<Row>} />;
 };

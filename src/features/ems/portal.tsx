@@ -19,6 +19,7 @@ import { fullName } from '@/services/ems';
 import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { audit } from '@/services/audit';
+import { payInvoiceOnline, paystackOn } from '@/services/paystack';
 import { ChildHomework } from '@/features/lms/homework';
 import { ReportCardSheet } from './results';
 import { ReceiptView, SCHOOL_DEFAULTS, useSchool } from './operations';
@@ -31,6 +32,7 @@ const FOREST = '#0B3D2E'; const GOLD = '#C8A45A';
 type Tab = 'profile' | 'results' | 'attendance' | 'fees' | 'learning' | 'homework';
 
 export function ChildPortal({ student }: { student: WithId<Student> }) {
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>('results');
   const sid = student.id;
   const terms = useCollection<Term>(C.terms, () => [], 'all');
@@ -52,6 +54,13 @@ export function ChildPortal({ student }: { student: WithId<Student> }) {
   const [card, setCard] = useState<WithId<ReportCard> | null>(null);
   const [receipt, setReceipt] = useState<WithId<Payment> | null>(null);
   const [letter, setLetter] = useState(false);
+  const [payingId, setPayingId] = useState('');
+  const payOnline = async (invoiceId: string, part = false) => {
+    let amount: number | undefined;
+    if (part) { const v = window.prompt('How much do you want to pay now (NGN)?'); if (!v) return; amount = Number(v.replace(/,/g, '')); if (!(amount > 0)) return toast.error('Enter a valid amount.'); }
+    setPayingId(invoiceId);
+    try { await payInvoiceOnline(invoiceId, amount); } catch (e) { toast.error(errorMessage(e)); setPayingId(''); }
+  };
   const attSum = useMemo(() => { const c = (s: string) => att.data.filter((a) => a.status === s).length; const d = att.data.length; return { present: c('present'), absent: c('absent'), late: c('late'), excused: c('excused'), rate: d ? Math.round(((c('present') + c('late')) / d) * 100) : 0 }; }, [att.data]);
   const owing = inv.data.filter((i) => i.status !== 'cancelled').reduce((s, i) => s + i.balance, 0);
   const termName = (id: string) => { const t = terms.data.find((x) => x.id === id); return t ? `${t.sessionName ?? ''} ${t.name}`.trim() : id; };
@@ -73,7 +82,7 @@ export function ChildPortal({ student }: { student: WithId<Student> }) {
         {tab === 'attendance' && <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-4"><StatCard label="Present" value={attSum.present} tone="ok" /><StatCard label="Absent" value={attSum.absent} tone="danger" /><StatCard label="Late" value={attSum.late} tone="gold" /><StatCard label="Excused" value={attSum.excused} /></div>
           <Card>{att.data.length === 0 ? <EmptyState title="No attendance recorded" /> : <TableWrap><thead><tr><Th>Date</Th><Th>Status</Th></tr></thead><tbody>{[...att.data].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60).map((a) => <tr key={a.id}><Td>{fmtDate(a.date)}</Td><Td><StatusBadge status={a.status} /></Td></tr>)}</tbody></TableWrap>}</Card></div>}
         {tab === 'homework' && <ChildHomework studentUid={student.studentUid ?? ''} viewer={viewer} />}
-        {tab === 'fees' && <div className="space-y-5"><Card>{inv.data.length === 0 ? <EmptyState title="No invoices" /> : <TableWrap><thead><tr><Th>Invoice</Th><Th>Term</Th><Th>Total</Th><Th>Paid</Th><Th>Balance</Th><Th>Status</Th></tr></thead><tbody>{inv.data.map((i) => <tr key={i.id}><Td>{i.invoiceNo}</Td><Td>{i.termName}</Td><Td>{fmtMoney(i.total, i.currency)}</Td><Td>{fmtMoney(i.paid, i.currency)}</Td><Td className="font-medium">{fmtMoney(i.balance, i.currency)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}</tbody></TableWrap>}</Card>
+        {tab === 'fees' && <div className="space-y-5"><Card>{inv.data.length === 0 ? <EmptyState title="No invoices" /> : <TableWrap><thead><tr><Th>Invoice</Th><Th>Term</Th><Th>Total</Th><Th>Paid</Th><Th>Balance</Th><Th>Status</Th><Th /></tr></thead><tbody>{inv.data.map((i) => <tr key={i.id}><Td>{i.invoiceNo}</Td><Td>{i.termName}</Td><Td>{fmtMoney(i.total, i.currency)}</Td><Td>{fmtMoney(i.paid, i.currency)}</Td><Td className="font-medium">{fmtMoney(i.balance, i.currency)}</Td><Td><StatusBadge status={i.status} /></Td><Td>{viewer !== 'staff' && paystackOn && i.balance > 0 && i.status !== 'cancelled' && i.currency === 'NGN' && <div className="flex gap-1"><Button size="sm" loading={payingId === i.id} onClick={() => void payOnline(i.id)}>Pay online</Button><Button size="sm" variant="ghost" onClick={() => void payOnline(i.id, true)}>Part</Button></div>}</Td></tr>)}</tbody></TableWrap>}</Card>
           {pay.data.length > 0 && <Card><CardHeader title="Payment receipts" /><TableWrap><thead><tr><Th>Receipt</Th><Th>Date</Th><Th>Amount</Th><Th /></tr></thead><tbody>{pay.data.map((p) => <tr key={p.id}><Td>{p.receiptNo}</Td><Td>{fmtDate(p.paidAt)}</Td><Td>{fmtMoney(p.amount, p.currency)}</Td><Td><Button size="icon" variant="ghost" aria-label="Receipt" onClick={() => setReceipt(p)}><ReceiptIcon className="h-4 w-4" /></Button></Td></tr>)}</tbody></TableWrap></Card>}</div>}
         {tab === 'learning' && (enr.data.length === 0 ? <Card><EmptyState title="No courses yet" description={student.studentUid ? 'Enrolled courses and progress appear here.' : 'This learner has no portal login yet.'} /></Card> : <Card><ul className="divide-y divide-line">{enr.data.map((e) => <li key={e.id} className="p-4"><div className="flex justify-between text-sm"><span className="font-medium">{e.courseTitle}</span><span>{e.progressPct}%</span></div><Progress className="mt-2" value={e.progressPct} /></li>)}</ul></Card>)}
         {tab === 'profile' && <Card><CardBody>{canPrintAdmissionLetter(student) && <div className="mb-4"><Button variant="outline" onClick={() => setLetter(true)}>Admission letter</Button></div>}<dl className="grid gap-4 text-sm sm:grid-cols-3">{[['Gender', student.gender], ['Date of birth', fmtDate(student.dob)], ['Programme', student.programme], ['Admission status', student.admissionStatus], ['Address', student.address], ['Guardian phone', student.guardianPhone], ...(can(role, 'students.read') ? [['Allergies / notes', student.allergies], ['Blood group', student.bloodGroup]] : [])].map(([k, v]) => <div key={String(k)}><dt className="text-xs text-muted">{k}</dt><dd className="capitalize">{v || '—'}</dd></div>)}</dl>
@@ -180,7 +189,7 @@ export function SchoolSettingsPage() {
       <Card className="max-w-2xl"><CardBody><EntityForm initial={initial as unknown as Record<string, unknown>} submitLabel="Save settings" fields={[
         { name: 'schoolName', label: 'School name', type: 'text', required: true }, { name: 'currency', label: 'Currency code (ISO)', type: 'text', required: true, hint: 'e.g. NGN, USD, GBP' },
         { name: 'address', label: 'Address (receipts & reports)', type: 'text', span: 2 }, { name: 'caMax', label: 'Max continuous-assessment score', type: 'number', required: true, min: 1, max: 100 }, { name: 'examMax', label: 'Max exam score', type: 'number', required: true, min: 1, max: 100 },
-        { name: 'admissionNote', label: 'Admission letter note (what to bring, conditions, resumption date)', type: 'textarea', span: 2 }, { name: 'paymentNote', label: 'Payment instructions (shown on invoices)', type: 'textarea' }, { name: 'reportFooter', label: 'Report card footer', type: 'textarea' }]}
+        { name: 'signatoryName', label: 'Signatory name (printed under the signature)', type: 'text' }, { name: 'signatoryTitle', label: 'Signatory title', type: 'text', placeholder: 'Principal' }, { name: 'signatureUrl', label: 'Signature image (transparent PNG works best)', type: 'image', span: 2 }, { name: 'stampUrl', label: 'School stamp image (transparent PNG works best)', type: 'image', span: 2 }, { name: 'admissionNote', label: 'Admission letter note (what to bring, conditions, resumption date)', type: 'textarea', span: 2 }, { name: 'paymentNote', label: 'Payment instructions (shown on invoices)', type: 'textarea' }, { name: 'reportFooter', label: 'Report card footer', type: 'textarea' }]}
         onSubmit={async (p) => {
           if (Number(p.caMax) + Number(p.examMax) !== 100) return toast.error('CA max + exam max must equal 100.');
           try { await setDoc(doc(db(), C.settings, 'school'), { ...SCHOOL_DEFAULTS, ...p, currency: String(p.currency).toUpperCase(), updatedAt: serverTimestamp() }, { merge: true }); void audit('settings.update', 'settings/school'); toast.success('Saved'); } catch (e) { toast.error(errorMessage(e)); }

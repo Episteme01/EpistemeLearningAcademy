@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { where, orderBy, limit } from 'firebase/firestore';
+import { SignatureBlock } from './SignatureBlock';
 import { Printer, Receipt as ReceiptIcon, Wallet } from 'lucide-react';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { DataTable } from '@/components/common/DataTable';
@@ -26,7 +27,7 @@ import { classRef } from './refs';
 import { LinkedPeopleDialog } from './people';
 
 type Row = Record<string, unknown> & { id: string };
-export interface SchoolSettings { schoolName: string; currency: string; address: string; paymentNote: string; reportFooter: string; caMax: number; examMax: number; admissionNote?: string }
+export interface SchoolSettings { schoolName: string; currency: string; address: string; paymentNote: string; reportFooter: string; caMax: number; examMax: number; admissionNote?: string; signatureUrl?: string; stampUrl?: string; signatoryName?: string; signatoryTitle?: string }
 export const SCHOOL_DEFAULTS: SchoolSettings = { schoolName: BRAND.name, currency: 'NGN', address: BRAND.location, paymentNote: '', reportFooter: '', caMax: 40, examMax: 60 };
 export const useSchool = () => useSettings<SchoolSettings>('school', SCHOOL_DEFAULTS);
 
@@ -130,7 +131,8 @@ export function ReceiptView({ payment, onClose }: { payment: WithId<Payment> | n
             <div><dt className="text-xs text-muted">Student</dt><dd>{payment.studentName}</dd></div><div><dt className="text-xs text-muted">Invoice</dt><dd>{payment.invoiceNo}</dd></div>
             <div><dt className="text-xs text-muted">Method</dt><dd className="capitalize">{payment.method.replace('_', ' ')}</dd></div><div><dt className="text-xs text-muted">Reference</dt><dd>{payment.reference || '—'}</dd></div></dl>
           <p className="rounded bg-cream p-4 text-center font-heading text-2xl font-semibold text-forest-700">{fmtMoney(payment.amount, payment.currency)}</p>
-          <p className="text-xs text-muted">Recorded by {payment.recordedBy}. This receipt is computer generated.</p>
+          <p className="text-xs text-muted">Recorded by {payment.recordedBy}.</p>
+          <SignatureBlock label="Bursar / Authorised signatory" />
         </div>)}
     </Dialog>
   );

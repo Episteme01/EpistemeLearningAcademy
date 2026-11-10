@@ -4,6 +4,8 @@ import { Dialog } from '@/components/ui/overlay';
 import { BRAND } from '@/config/brand';
 import { useSettings } from '@/hooks/useSettings';
 import { fmtDate, todayISO } from '@/lib/utils';
+import { SecureAvatar } from '@/components/common/SecureAvatar';
+import { SignatureBlock } from './SignatureBlock';
 import { fullName } from '@/services/ems';
 import type { Student } from '@/types/models';
 
@@ -13,7 +15,7 @@ const DEFAULTS = { schoolName: BRAND.name, address: BRAND.location, admissionNot
 export const canPrintAdmissionLetter = (s: Pick<Student, 'admissionStatus'>) => s.admissionStatus === 'admitted' || s.admissionStatus === 'enrolled';
 
 /** Printable admission letter. Shared by the staff, parent and student portals (print or save as PDF). */
-export function AdmissionLetterDialog({ student, onClose }: { student: Student | null; onClose: () => void }) {
+export function AdmissionLetterDialog({ student, onClose }: { student: (Student & { id: string }) | null; onClose: () => void }) {
   const school = useSettings('school', DEFAULTS);
   const name = student ? fullName(student) : '';
   return (
@@ -22,7 +24,8 @@ export function AdmissionLetterDialog({ student, onClose }: { student: Student |
         <div className="print-area space-y-5 text-sm leading-relaxed">
           <div className="flex items-center gap-3 border-b-2 border-forest-700 pb-3">
             <img src={BRAND.logo} alt="" className="h-14 w-14" />
-            <div><p className="font-heading text-lg font-semibold text-forest-700">{school.schoolName}</p><p className="text-xs text-muted">{school.address}</p></div>
+            <div className="flex-1"><p className="font-heading text-lg font-semibold text-forest-700">{school.schoolName}</p><p className="text-xs text-muted">{school.address}</p></div>
+            <SecureAvatar name={name} collection="students" docId={student.id} photoRef={student.photoRef} legacyUrl={student.photoUrl} size={88} />
           </div>
           <div className="flex flex-wrap justify-between gap-2 text-xs text-muted"><span>Ref: {student.studentNo}</span><span>Date: {fmtDate(student.admittedAt || todayISO())}</span></div>
           <div><p>The Parent / Guardian of</p><p className="font-semibold">{name}</p>{student.address && <p className="text-muted">{student.address}</p>}</div>
@@ -36,7 +39,7 @@ export function AdmissionLetterDialog({ student, onClose }: { student: Student |
           </tbody></table>
           {school.admissionNote && <div><p className="font-semibold">Please note</p><p className="whitespace-pre-line">{school.admissionNote}</p></div>}
           <p>Please keep this letter and quote the admission number above in all correspondence with the school. We look forward to welcoming {student.firstName} and working with you.</p>
-          <div className="pt-6"><p>Yours sincerely,</p><div className="mt-8 w-56 border-t border-ink pt-1"><p className="font-medium">The Principal</p><p className="text-xs text-muted">{school.schoolName}</p></div></div>
+          <div className="pt-4"><p>Yours sincerely,</p><SignatureBlock /><p className="mt-1 text-xs text-muted">{school.schoolName}</p></div>
         </div>
       )}
     </Dialog>

@@ -20,6 +20,8 @@ import { audit } from '@/services/audit';
 import { errorMessage } from '@/lib/utils';
 import type { ClassRoom, ReportCard, ResultRecord, Student, Subject, TeacherAssignment, Term, WithId } from '@/types/models';
 import { useSchool } from './operations';
+import { SignatureBlock } from './SignatureBlock';
+import { SecureAvatar } from '@/components/common/SecureAvatar';
 
 /** Active scale = the one flagged default in Firestore, else the built-in standard scale. */
 export function useScale(): GradingScale {
@@ -55,7 +57,9 @@ export function ResultsEntryPage() {
   const [vals, setVals] = useState<Record<string, { ca: string; exam: string; comment: string }>>({});
   const [busy, setBusy] = useState(false);
   const mine = role === 'teacher' ? assignments.data : undefined;
-  const subjOpts = subjects.data.filter((s) => (mine ? mine.some((a) => a.classId === classId && a.subjectId === s.id) : true));
+  const classRow = useCollection<ClassRoom>(C.classes, () => [], 'all').data.find((c) => c.id === classId);
+  const classSubjects = classRow?.subjectIds ?? [];
+  const subjOpts = subjects.data.filter((s) => (mine ? mine.some((a) => a.classId === classId && a.subjectId === s.id) : true)).filter((s) => (classSubjects.length ? classSubjects.includes(s.id) : true));
   const active = useMemo(() => students.data.filter((s) => s.status === 'active').sort((a, b) => a.lastName.localeCompare(b.lastName)), [students.data]);
 
   useEffect(() => {
@@ -133,14 +137,14 @@ export function ApprovalsPage() {
 }
 
 /* ---------------------------------------------------------------- report cards */
-export function ReportCardSheet({ card, results, term, student, className }: { card: WithId<ReportCard>; results: WithId<ResultRecord>[]; term?: Term; student?: Student; className?: string }) {
+export function ReportCardSheet({ card, results, term, student, className }: { card: WithId<ReportCard>; results: WithId<ResultRecord>[]; term?: Term; student?: Student & { id: string }; className?: string }) {
   const school = useSchool();
   return (
     <div className="print-area rounded-lg border border-line bg-white p-6 text-sm">
       <div className="flex items-center gap-4 border-b-2 border-forest-700 pb-4">
         <img src={BRAND.logo} alt="" className="h-16 w-16 object-contain" />
         <div className="flex-1 text-center"><p className="font-heading text-xl font-semibold text-forest-700">{school.schoolName}</p><p className="text-xs text-muted">{BRAND.motto} · {school.address}</p><p className="mt-1 font-heading text-sm font-semibold uppercase tracking-widest text-gold-600">Terminal report card</p></div>
-        <div className="h-16 w-16" />
+        {student ? <SecureAvatar name={card.studentName} collection="students" docId={student.id} photoRef={student.photoRef} legacyUrl={student.photoUrl} size={64} /> : <div className="h-16 w-16" />}
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
         <div><dt className="text-xs text-muted">Name</dt><dd className="font-medium">{card.studentName}</dd></div><div><dt className="text-xs text-muted">Student no.</dt><dd>{student?.studentNo ?? '—'}</dd></div>
@@ -150,7 +154,7 @@ export function ReportCardSheet({ card, results, term, student, className }: { c
         <tbody>{[...results].sort((a, b) => a.subjectName.localeCompare(b.subjectName)).map((r) => <tr key={r.id} className="border-b border-line"><td className="px-3 py-1.5">{r.subjectName}</td><td className="px-3">{r.ca}</td><td className="px-3">{r.exam}</td><td className="px-3 font-medium">{r.total}</td><td className="px-3">{r.grade}</td><td className="px-3">{r.remark}</td></tr>)}</tbody></table></div>
       <div className="mt-4 grid grid-cols-3 gap-3 rounded bg-cream p-3 text-center"><div><p className="text-xs text-muted">Total</p><p className="font-heading text-lg font-semibold">{card.total}</p></div><div><p className="text-xs text-muted">Average</p><p className="font-heading text-lg font-semibold">{card.average}%</p></div><div><p className="text-xs text-muted">Position</p><p className="font-heading text-lg font-semibold">{card.position ? `${ordinal(card.position)} of ${card.classSize}` : '—'}</p></div></div>
       <div className="mt-4 space-y-3"><div><p className="text-xs font-medium text-muted">Class teacher’s comment</p><p>{card.teacherComment || '—'}</p></div><div><p className="text-xs font-medium text-muted">Principal’s comment</p><p>{card.principalComment || '—'}</p></div></div>
-      <div className="mt-6 flex items-end justify-between"><div className="text-center"><img src={BRAND.signature} alt="" className="mx-auto h-12" /><p className="border-t border-ink px-6 pt-1 text-xs">Principal</p></div><img src={BRAND.stamp} alt="" className="h-20 opacity-80" /></div>
+      <SignatureBlock />
       {school.reportFooter && <p className="mt-4 text-center text-xs text-muted">{school.reportFooter}</p>}
     </div>
   );
