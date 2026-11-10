@@ -18,6 +18,7 @@ import { SITE_URL } from '@/config/env';
 import { createDoc, getById, listDocs, patchDoc, replaceDoc } from '@/services/db';
 import { issueCertificate } from '@/services/lms';
 import { notifyUsers } from '@/services/notifications';
+import { audit } from '@/services/audit';
 import { resolveAudience } from '@/services/assignmentAudience';
 import { UPLOADS_OFF_MESSAGE, deleteFileRef, signedUrlFor, uploadFor } from '@/services/files';
 import { flags } from '@/config/env';
@@ -178,6 +179,7 @@ function StaffAssignments() {
     try {
       const aud = await resolveAudience({ classId: String(r.classId ?? ''), courseId: String(r.courseId ?? '') });
       await patchDoc(C.assignments, r.id, aud);
+      void audit('assignment.audience', `assignments/${r.id}`, `${aud.studentUids.length} learners`);
       toast.success(`Audience updated: ${aud.studentUids.length} learners, ${aud.parentViewers.length} parents`);
     } catch (e) { toast.error(errorMessage(e)); }
   };
