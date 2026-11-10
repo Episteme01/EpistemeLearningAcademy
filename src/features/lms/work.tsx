@@ -18,6 +18,7 @@ import { SITE_URL } from '@/config/env';
 import { createDoc, getById, listDocs, patchDoc, replaceDoc } from '@/services/db';
 import { issueCertificate } from '@/services/lms';
 import { notifyUsers } from '@/services/notifications';
+import { resolveAudience } from '@/services/assignmentAudience';
 import { UPLOADS_OFF_MESSAGE, deleteFileRef, signedUrlFor, uploadFor } from '@/services/files';
 import { flags } from '@/config/env';
 import type { FileRef } from '@/lib/fileRef';
@@ -160,12 +161,25 @@ function StaffAssignments() {
       { name: 'title', label: 'Title', type: 'text', required: true, span: 2 }, { name: 'instructions', label: 'Instructions', type: 'textarea', required: true },
       { name: 'courseId', label: 'Course', type: 'ref', ref: { collection: C.courses, label: (r) => String(r.title) } }, { name: 'classId', label: 'Class (optional)', type: 'ref', ref: { collection: C.classes, label: (r) => String(r.name) } },
       { name: 'dueAt', label: 'Deadline', type: 'datetime', required: true }, { name: 'maxScore', label: 'Maximum score', type: 'number', required: true, min: 1, defaultValue: 100 },
+      { name: 'kind', label: 'Type', type: 'select', options: [{ value: 'homework', label: 'Homework' }, { value: 'classwork', label: 'Classwork' }, { value: 'project', label: 'Project' }], defaultValue: 'homework' },
+      { name: 'allowLate', label: 'Accept late submissions (marked LATE)', type: 'checkbox', defaultValue: true },
       { name: 'allowText', label: 'Allow text submission', type: 'checkbox', defaultValue: true }, { name: 'allowFile', label: 'Allow file submission', type: 'checkbox', defaultValue: true },
     ],
-    beforeSave: (p, e) => { if (!p.courseId && !p.classId) throw new Error('Choose a course or a class for this assignment.'); return e ? p : { ...p, teacherUid: uid ?? '', teacherName: profile?.displayName ?? '' }; },
+    beforeSave: async (p, e) => {
+      if (!p.courseId && !p.classId) throw new Error('Choose a course or a class for this assignment.');
+      const aud = await resolveAudience({ classId: String(p.classId ?? ''), courseId: String(p.courseId ?? '') }).catch(() => ({ studentUids: [], parentViewers: [] }));
+      return e ? { ...p, ...aud } : { ...p, ...aud, teacherUid: uid ?? '', teacherName: profile?.displayName ?? '' };
+    },
     columns: [{ key: 't', header: 'Assignment', primary: true, cell: (r) => <span className="font-medium">{String(r.title)}</span> }, { key: 'd', header: 'Deadline', cell: (r) => fmtDate(r.dueAt, true) }, { key: 'm', header: 'Max', cell: (r) => String(r.maxScore) }],
     searchKeys: ['title'], sort: (a, b) => (toDate(b.dueAt)?.getTime() ?? 0) - (toDate(a.dueAt)?.getTime() ?? 0),
-    rowActions: (r) => <Button size="sm" variant="outline" onClick={() => setOpen(r)}>Submissions</Button>,
+    rowActions: (r) => <><Button size="sm" variant="outline" onClick={() => setOpen(r)}>Submissions</Button><Button size="sm" variant="ghost" onClick={() => void refreshAudience(r)}>Refresh audience</Button></>,
+  };
+  const refreshAudience = async (r: Row) => {
+    try {
+      const aud = await resolveAudience({ classId: String(r.classId ?? ''), courseId: String(r.courseId ?? '') });
+      await patchDoc(C.assignments, r.id, aud);
+      toast.success(`Audience updated: ${aud.studentUids.length} learners, ${aud.parentViewers.length} parents`);
+    } catch (e) { toast.error(errorMessage(e)); }
   };
   const save = async (s: Row) => {
     const g = grade[s.id]; if (!g) return;
@@ -210,13 +224,15 @@ function StudentAssignments() {
     if (!text.trim() && !file) return toast.error('Write an answer or attach a file.');
     setBusy(true);
     try {
+      // parents may read their child's submission only if their uid is on it; take it from the learner's own student record
+      const parentUids = profile.studentId ? ((await getById<{ parentUids?: string[] }>(C.students, profile.studentId).catch(() => null))?.parentUids ?? []) : [];
       const before = subOf(sel.id) as { fileRef?: FileRef; fileName?: string; fileUrl?: string } | undefined;
       let fileRef: FileRef | null = before?.fileRef ?? null; let fileName = before?.fileName ?? ''; let fileUrl = before?.fileUrl ?? '';
       if (file) {
         if (!flags.uploads) throw new Error(UPLOADS_OFF_MESSAGE);
         fileRef = await uploadFor('submission', file, roles, { assignmentId: sel.id }); fileName = file.name; fileUrl = '';
       }
-      await replaceDoc(C.submissions, `${sel.id}_${uid}`, { assignmentId: sel.id, uid, studentName: profile.displayName, parentUids: [], text: text.trim(), fileUrl, fileRef, fileName, status: 'submitted', submittedAt: new Date() });
+      await replaceDoc(C.submissions, `${sel.id}_${uid}`, { assignmentId: sel.id, uid, studentName: profile.displayName, parentUids, text: text.trim(), fileUrl, fileRef, fileName, status: 'submitted', submittedAt: new Date() });
       // replacing a file: remove the old private copy only after the new submission is saved
       if (file && before?.fileRef?.provider === 'supabase') void deleteFileRef(before.fileRef).catch(() => undefined);
       toast.success('Submitted'); setSel(null); setText(''); setFile(null);
@@ -226,10 +242,10 @@ function StudentAssignments() {
   return (
     <>
       <PageHeader title="Assignments" description="Submit work before the deadline and read your feedback." />
-      {list.length === 0 ? <Card><EmptyState title="No assignments" description="Assignments from your classes and courses appear here." /></Card> : <div className="space-y-3">{list.map((a) => { const s = subOf(a.id); const late = toDate(a.dueAt) && toDate(a.dueAt)! < new Date(); return (
-        <Card key={a.id}><CardBody className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium">{a.title}</p><p className="mt-1 text-sm text-muted line-clamp-2">{a.instructions}</p><p className="mt-1 text-xs text-muted">Due {fmtDate(a.dueAt, true)} {late && !s ? <Badge tone="danger">overdue</Badge> : null}</p>
+      {list.length === 0 ? <Card><EmptyState title="No assignments" description="Assignments from your classes and courses appear here." /></Card> : <div className="space-y-3">{list.map((a) => { const s = subOf(a.id); const late = toDate(a.dueAt) && toDate(a.dueAt)! < new Date(); const locked = !!late && (a as { allowLate?: boolean }).allowLate === false; return (
+        <Card key={a.id}><CardBody className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium">{a.title}</p><p className="mt-1 text-sm text-muted line-clamp-2">{a.instructions}</p><p className="mt-1 text-xs text-muted">Due {fmtDate(a.dueAt, true)} {late && !s ? <Badge tone="danger">{locked ? 'closed' : 'overdue'}</Badge> : null}</p>
           {s?.status === 'graded' && <p className="mt-2 text-sm"><strong>{String(s.score)}</strong> / {a.maxScore} — {String(s.feedback ?? '')}</p>}</div>
-          <div className="flex items-center gap-2">{s && <StatusBadge status={String(s.status)} />}{(!s || s.status !== 'graded') && <Button size="sm" onClick={() => { setSel(a); setText(String(s?.text ?? '')); setFile(null); }}>{s ? 'Resubmit' : 'Submit'}</Button>}</div></CardBody></Card>); })}</div>}
+          <div className="flex items-center gap-2">{s && <StatusBadge status={String(s.status)} />}{(!s || s.status !== 'graded') && !locked && <Button size="sm" onClick={() => { setSel(a); setText(String(s?.text ?? '')); setFile(null); }}>{s ? 'Resubmit' : 'Submit'}</Button>}</div></CardBody></Card>); })}</div>}
       <Dialog open={!!sel} onClose={() => setSel(null)} title={sel?.title ?? ''} description={`Due ${fmtDate(sel?.dueAt, true)}`} footer={<><Button variant="outline" onClick={() => setSel(null)}>Cancel</Button><Button loading={busy} onClick={() => void submit()}>Submit</Button></>}>
         <p className="mb-4 whitespace-pre-wrap text-sm">{sel?.instructions}</p>
         {sel?.allowText !== false && <Field label="Your answer">{(a) => <Textarea {...a} rows={6} value={text} onChange={(e) => setText(e.target.value)} />}</Field>}
