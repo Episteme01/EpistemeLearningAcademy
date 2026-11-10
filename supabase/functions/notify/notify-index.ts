@@ -123,7 +123,11 @@ async function adminToken(): Promise<string> {
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT' }).setIssuer(sa.client_email).setSubject(sa.client_email)
     .setAudience('https://oauth2.googleapis.com/token').setIssuedAt().setExpirationTime('55m').sign(key);
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
-  if (!r.ok) throw new HttpError(502, 'Could not sign in to Firebase with the service account.');
+  if (!r.ok) {
+    const e = (await r.json().catch(() => ({}))) as { error?: string; error_description?: string };
+    console.error('service account sign-in failed', e);
+    throw new HttpError(502, `Could not sign in to Firebase with the service account: ${e.error ?? r.status} ${e.error_description ?? ''}`.trim());
+  }
   const j = (await r.json()) as { access_token: string; expires_in: number };
   cached = { token: j.access_token, exp: Date.now() + j.expires_in * 1000 };
   return cached.token;
