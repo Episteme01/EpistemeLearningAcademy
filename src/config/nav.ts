@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Users, GraduationCap, UserRound, Briefcase, School, BookOpen, CalendarCheck, Wallet, Receipt, FileText,
   ClipboardList, BarChart3, Settings, Globe, Image, Newspaper, Megaphone, Inbox, Video, Award, FileQuestion, Library, Shield,
-  ScrollText, Compass, Layers, ListChecks, Tags, PenSquare, Building2, UserPlus, Percent, CalendarDays, ClipboardCheck, Menu as MenuIcon,
+  ScrollText, Compass, Layers, ListChecks, Tags, PenSquare, Building2, UserPlus, Percent, CalendarDays, ClipboardCheck, Menu as MenuIcon, Bell, LineChart,
   type LucideIcon,
 } from 'lucide-react';
 import type { Platform, Role } from './permissions';
@@ -74,6 +74,8 @@ export const NAV: NavItem[] = [
   // ---- LMS
   { label: 'Overview', to: '/app/lms', icon: Library, platform: 'lms', roles: [...ACADEMIC, 'director', 'student', 'parent'], end: true },
   { label: 'Courses', to: '/app/lms/courses', icon: BookOpen, platform: 'lms', roles: ACADEMIC, group: 'Teach' },
+  { label: 'Notices', to: '/app/notices', icon: Bell, platform: 'home', roles: ['super_admin', 'admin', 'principal', 'director', 'teacher', 'parent', 'student'], group: 'Overview' },
+  { label: 'Analytics', to: '/app/analytics', icon: LineChart, platform: 'home', roles: ['super_admin', 'admin', 'principal', 'director', 'teacher'], group: 'Overview' },
   { label: 'Assignments', to: '/app/lms/assignments', icon: ClipboardList, platform: 'lms', roles: [...ACADEMIC, 'student'], group: 'Teach' },
   { label: 'Quizzes', to: '/app/lms/quizzes', icon: FileQuestion, platform: 'lms', roles: [...ACADEMIC, 'student'], group: 'Teach' },
   { label: 'Timetable', to: '/app/schedule', icon: CalendarDays, platform: 'lms', roles: ['super_admin', 'director', 'principal', 'admin', 'teacher', 'student', 'parent'], group: 'Teach' },

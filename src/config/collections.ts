@@ -61,5 +61,8 @@ export const C = {
   examEvents: 'examEvents',
   // shared
   notifications: 'notifications',
+  notices: 'notices',
+  pushSubscriptions: 'pushSubscriptions',
+  notificationPrefs: 'notificationPrefs',
   auditLogs: 'auditLogs',
 } as const;
