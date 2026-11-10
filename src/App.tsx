@@ -25,6 +25,8 @@ import { Dashboard } from '@/features/dashboards/Dashboard';
 import { CalendarPage } from '@/features/schedule/Calendar';
 import { AttendancePage } from '@/features/attendance/AttendancePage';
 import { ResourcesPage } from '@/features/resources/ResourcesPage';
+import { NoticesPage } from '@/features/notices/NoticesPage';
+import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
 import { StorageInventory } from '@/features/media/StorageInventory';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
@@ -71,6 +73,8 @@ export function App() {
         <Route path="cms/homepage" element={guard('/app/cms/homepage', <Cms.CmsHomepage />)} />
         <Route path="cms/navigation" element={guard('/app/cms/navigation', <Cms.CmsNavigation />)} />
         <Route path="cms/media" element={guard('/app/cms/media', <Cms.CmsMedia />)} />
+        <Route path="notices" element={guard('/app/notices', <NoticesPage />)} />
+        <Route path="analytics" element={guard('/app/analytics', <AnalyticsPage />)} />
         <Route path="storage-inventory" element={guard('/app/storage-inventory', <StorageInventory />)} />
         <Route path="cms/settings" element={guard('/app/cms/settings', <Cms.CmsSettings />)} />
         <Route path="cms/enquiries" element={guard('/app/cms/enquiries', <Cms.CmsEnquiries />)} />
