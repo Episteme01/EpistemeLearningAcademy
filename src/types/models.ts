@@ -104,6 +104,9 @@ export interface ClassRoom {
   capacity?: number;
   classTeacherUid?: string;
   classTeacherName?: string;
+  /** subjects this class offers (ids) and their names for display */
+  subjectIds?: string[];
+  subjectNames?: string[];
 }
 
 export interface Subject {
