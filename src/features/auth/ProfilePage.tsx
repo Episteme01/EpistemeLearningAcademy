@@ -8,6 +8,7 @@ import { PhotoControl } from '@/components/common/PhotoControl';
 import { patchDoc } from '@/services/db';
 import { C } from '@/config/collections';
 import { ROLE_LABELS, rolesOf } from '@/config/permissions';
+import { NotificationSettings } from '@/features/notices/NotificationSettings';
 import { errorMessage } from '@/lib/utils';
 
 export function ProfilePage() {
@@ -34,6 +35,7 @@ export function ProfilePage() {
           <Button variant="outline" onClick={() => { void resetPassword(profile.email).then(() => toast.success('Password reset email sent')); }}>Email me a password reset link</Button>
         </div>
       </CardBody></Card>
+      <NotificationSettings />
     </>
   );
 }
