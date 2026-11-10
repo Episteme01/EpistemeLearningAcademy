@@ -23,6 +23,7 @@ import { toCsv } from '@/lib/csv';
 import { invoiceTotal } from '@/lib/finance';
 import type { AttendanceRecord, AttendanceStatus, ClassRoom, FeeStructure, Invoice, Payment, Student, Term, UserProfile, WithId } from '@/types/models';
 import { classRef } from './refs';
+import { LinkedPeopleDialog } from './people';
 
 type Row = Record<string, unknown> & { id: string };
 export interface SchoolSettings { schoolName: string; currency: string; address: string; paymentNote: string; reportFooter: string; caMax: number; examMax: number }
@@ -235,6 +236,7 @@ export function UsersPage() {
   const [created, setCreated] = useState<{ email: string; pw: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState<WithId<UserProfile> | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
   const [sel, setSel] = useState<Role[]>([]);
   const [primary, setPrimary] = useState<Role>('teacher');
   const assignable = assignableRoles(myRoles);
@@ -272,12 +274,18 @@ export function UsersPage() {
       <CrudPage config={{
         collection: C.users, singular: 'User', plural: 'Users & access', description: 'One login per person, with one or more roles. Suspending an account blocks all access immediately (enforced by security rules).', canCreate: false, canDelete: false, auditActions: true,
         fields: [{ name: 'displayName', label: 'Name', type: 'text', required: true }, { name: 'status', label: 'Status', type: 'select', required: true, options: ['active', 'suspended', 'pending'].map((v) => ({ value: v, label: v })) }, { name: 'phone', label: 'Phone', type: 'tel' }],
-        columns: [{ key: 'n', header: 'User', primary: true, cell: (r: WithId<UserProfile> & Row) => <div><p className="font-medium">{r.displayName}</p><p className="text-xs text-muted">{r.email}</p></div> }, { key: 'r', header: 'Roles', cell: (r: WithId<UserProfile> & Row) => <span className="flex flex-wrap gap-1">{rolesOf(r).map((x) => <Badge key={x}>{ROLE_LABELS[x]}</Badge>)}</span> }, { key: 's', header: 'Status', cell: (r: WithId<UserProfile> & Row) => <StatusBadge status={r.status} /> }, { key: 'd', header: 'Created', cell: (r: Row) => fmtDate(r.createdAt) }],
+        columns: [{ key: 'n', header: 'User', primary: true, cell: (r: WithId<UserProfile> & Row) => <div><p className="font-medium">{r.displayName}</p><p className="text-xs text-muted">{r.loginType === 'username' && r.username ? `Username: ${r.username}` : r.email}</p></div> }, { key: 'r', header: 'Roles', cell: (r: WithId<UserProfile> & Row) => <span className="flex flex-wrap gap-1">{rolesOf(r).map((x) => <Badge key={x}>{ROLE_LABELS[x]}</Badge>)}</span> }, { key: 's', header: 'Status', cell: (r: WithId<UserProfile> & Row) => <StatusBadge status={r.status} /> }, { key: 'd', header: 'Created', cell: (r: Row) => fmtDate(r.createdAt) }],
         searchKeys: ['displayName', 'email', 'role'], filters: [{ name: 'role', label: 'Primary role', options: ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] })) }, { name: 'status', label: 'Status', options: ['active', 'suspended', 'pending'].map((v) => ({ value: v, label: v })) }],
-        rowActions: (r: Row) => (assignable.length ? <Button size="sm" variant="outline" onClick={() => openEdit(r as unknown as WithId<UserProfile>)}>Roles</Button> : null),
+        rowActions: (r: Row) => (
+          <>
+            {typeof r.studentId === 'string' && r.studentId && <Button size="sm" variant="outline" onClick={() => setLinksFor(r.studentId as string)}>Links</Button>}
+            {assignable.length ? <Button size="sm" variant="outline" onClick={() => openEdit(r as unknown as WithId<UserProfile>)}>Roles</Button> : null}
+          </>
+        ),
         headerActions: <Button onClick={() => { setOpen(true); setCreated(null); setF({ email: '', name: '', roles: ['teacher'] }); }}>Create account</Button>,
       } as CrudConfig<Row>} />
 
+      <LinkedPeopleDialog studentId={linksFor} onClose={() => setLinksFor(null)} />
       <Dialog open={open} onClose={() => setOpen(false)} title="Create account" size="sm" footer={created ? <Button onClick={() => setOpen(false)}>Done</Button> : <><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button loading={busy} onClick={() => void create()}>Create</Button></>}>
         {created ? <div className="space-y-2 text-sm"><p className="text-ok">Account created.</p><p className="rounded bg-cream p-3 font-mono text-[13px]">{created.email}<br />{created.pw}</p><p className="text-xs text-muted">Shown once — share securely.</p></div> : (
           <div className="space-y-4"><Field label="Full name" required>{(a) => <Input {...a} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />}</Field>

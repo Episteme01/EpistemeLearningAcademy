@@ -1,7 +1,7 @@
 import { SecureAvatar } from '@/components/common/SecureAvatar';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link2, KeyRound, ArrowUpRight, UserPlus } from 'lucide-react';
+import { Link2, KeyRound, ArrowUpRight, UserPlus, Users, X } from 'lucide-react';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { Button } from '@/components/ui/button';
 import { Dialog, useToast } from '@/components/ui/overlay';
@@ -13,7 +13,8 @@ import { C } from '@/config/collections';
 import { can, rolesOf, ROLE_LABELS, type Role } from '@/config/permissions';
 import { createAccount, randomPassword } from '@/services/accounts';
 import { nextStaffNo, nextStudentNo } from '@/services/counters';
-import { addStudentHistory, attachParentUid, fullName, linkParent, promoteStudents } from '@/services/ems';
+import { addStudentHistory, attachParentUid, fullName, linkParent, linkTeacher, promoteStudents, unlinkParent, unlinkTeacher } from '@/services/ems';
+import { kidPassword, makeUsername, STUDENT_EMAIL_DOMAIN } from '@/lib/studentLogin';
 import { getById, patchDoc } from '@/services/db';
 import { errorMessage, fmtDate } from '@/lib/utils';
 import { audit } from '@/services/audit';
@@ -24,22 +25,45 @@ import { CLASS_LEVELS } from '@/features/public/content';
 type SRow = WithId<Student> & Record<string, unknown>;
 const byName = (a: { firstName?: string; lastName?: string }, b: { firstName?: string; lastName?: string }) => (a.lastName ?? '').localeCompare(b.lastName ?? '');
 
-/** Dialog that creates a login and shows the one-time password. */
-function AccountDialog({ open, onClose, defaults, roles, onCreated }: {
-  open: boolean; onClose: () => void; defaults: { name: string; email: string; role: Role; studentId?: string; classId?: string; staffId?: string; parentId?: string };
-  roles: Role[]; onCreated?: (uid: string) => Promise<void> | void;
+/**
+ * Dialog that creates a login and shows the one-time password.
+ * Children (role student, not adult) get a username instead of an email; everyone else uses a real email.
+ */
+function AccountDialog({ open, onClose, defaults, roles, onCreated, takenUsernames = [] }: {
+  open: boolean; onClose: () => void;
+  defaults: { name: string; email: string; role: Role; studentId?: string; classId?: string; staffId?: string; parentId?: string; firstName?: string; isAdult?: boolean };
+  roles: Role[]; onCreated?: (uid: string, username?: string) => Promise<void> | void; takenUsernames?: string[];
 }) {
   const toast = useToast();
+  const kid = defaults.role === 'student' && !defaults.isAdult;
   const [email, setEmail] = useState(defaults.email);
   const [role, setRole] = useState<Role>(defaults.role);
-  const [pw] = useState(() => randomPassword());
+  const [username, setUsername] = useState(() => (kid ? makeUsername(defaults.firstName || defaults.name, takenUsernames) : ''));
+  const [pw, setPw] = useState(() => (kid ? kidPassword() : randomPassword()));
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const submit = async () => {
+    if (kid && pw.length < 6) return toast.error('The password needs at least 6 characters.');
+    if (!kid && !email.trim()) return toast.error('An email is required for this login.');
     setBusy(true);
     try {
-      const uid = await createAccount({ email, password: pw, displayName: defaults.name, role, studentId: defaults.studentId, classId: defaults.classId, staffId: defaults.staffId, parentId: defaults.parentId, sendResetEmail: false });
-      await onCreated?.(uid);
+      const base = { password: pw, displayName: defaults.name, role, studentId: defaults.studentId, classId: defaults.classId, staffId: defaults.staffId, parentId: defaults.parentId, sendResetEmail: false };
+      if (!kid) {
+        const uid = await createAccount({ ...base, email });
+        await onCreated?.(uid);
+      } else {
+        // A username clash shows up as "email already in use"; try a fresh number a few times.
+        let name = username; const tried = [...takenUsernames];
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const uid = await createAccount({ ...base, email: `${name}@${STUDENT_EMAIL_DOMAIN}`, username: name });
+            setUsername(name); await onCreated?.(uid, name); break;
+          } catch (e) {
+            if (attempt < 4 && /email-already-in-use/.test(String((e as { code?: string })?.code ?? e))) { tried.push(name); name = makeUsername(defaults.firstName || defaults.name, tried); continue; }
+            throw e;
+          }
+        }
+      }
       setDone(true);
     } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
   };
@@ -47,13 +71,61 @@ function AccountDialog({ open, onClose, defaults, roles, onCreated }: {
     <Dialog open={open} onClose={() => { setDone(false); onClose(); }} title="Create portal login" description={defaults.name} size="sm"
       footer={done ? <Button onClick={() => { setDone(false); onClose(); }}>Done</Button> : <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={() => void submit()}>Create login</Button></>}>
       {done ? (
-        <div className="space-y-2 text-sm"><p className="text-ok">Account created.</p><p>Share these credentials securely. The password is shown <strong>once</strong>; the user should change it via “Forgot password”.</p>
-          <p className="rounded bg-cream p-3 font-mono text-[13px]">{email}<br />{pw}</p></div>
+        <div className="space-y-2 text-sm"><p className="text-ok">Account created.</p>
+          <p>{kid ? 'Give the child these details. They sign in with the username and password (no email needed).' : <>Share these credentials securely. The password is shown <strong>once</strong>; the user should change it via “Forgot password”.</>}</p>
+          <p className="rounded bg-cream p-3 font-mono text-[13px]">{kid ? <>Username: {username}</> : email}<br />Password: {pw}</p></div>
+      ) : kid ? (
+        <div className="space-y-4">
+          <Field label="Username" hint="Made from the first name. The child types this to sign in.">{(a) => <Input {...a} value={username} readOnly />}</Field>
+          <Field label="Starting password" hint="You can change it. At least 6 characters.">{(a) => <Input {...a} value={pw} onChange={(e) => setPw(e.target.value.replace(/\s/g, ''))} />}</Field>
+          <p className="text-xs text-muted">No email is needed. For an adult learner, tick “Adult learner” on the student record first, and they will sign in with their own email.</p>
+        </div>
       ) : (
         <div className="space-y-4">
           <Field label="Email" required>{(a) => <Input {...a} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
           {roles.length > 1 && <Field label="Role">{(a) => <Select {...a} value={role} onChange={(e) => setRole(e.target.value as Role)}>{roles.map((r) => <option key={r}>{r}</option>)}</Select>}</Field>}
           <p className="text-xs text-muted">A strong random password is generated for the first sign-in.</p>
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
+/** Who a learner is linked to (parents and teachers). Used from Students and from Users & access. */
+export function LinkedPeopleDialog({ studentId, onClose }: { studentId: string | null; onClose: () => void }) {
+  const toast = useToast();
+  const parents = useCollection<Parent>(C.parents, () => [], 'all');
+  const staff = useCollection<Staff>(C.staff, () => [], 'all');
+  const [student, setStudent] = useState<WithId<Student> | null>(null);
+  const [parentPick, setParentPick] = useState(''); const [teacherPick, setTeacherPick] = useState('');
+  const load = useCallback(async () => { setStudent(studentId ? await getById<Student>(C.students, studentId) : null); }, [studentId]);
+  useEffect(() => { setParentPick(''); setTeacherPick(''); void load(); }, [load]);
+  const run = async (fn: () => Promise<void>, ok: string) => { try { await fn(); toast.success(ok); await load(); } catch (e) { toast.error(errorMessage(e)); } };
+  const linkedParents = parents.data.filter((p) => student?.parentIds?.includes(p.id));
+  const linkedTeachers = staff.data.filter((t) => student?.teacherIds?.includes(t.id));
+  const freeParents = parents.data.filter((p) => !student?.parentIds?.includes(p.id));
+  const freeTeachers = staff.data.filter((t) => t.userUid && !student?.teacherIds?.includes(t.id));
+  const row = (key: string, label: string, onRemove: () => void) => (
+    <li key={key} className="flex items-center justify-between rounded border border-line px-3 py-1.5 text-sm"><span>{label}</span>
+      <Button size="icon" variant="ghost" aria-label={`Remove ${label}`} onClick={onRemove}><X className="h-4 w-4" /></Button></li>
+  );
+  return (
+    <Dialog open={!!studentId} onClose={onClose} title="Linked people" description={student ? fullName(student) : ''} size="sm" footer={<Button onClick={onClose}>Done</Button>}>
+      {!student ? <p className="text-sm text-muted">Loading…</p> : (
+        <div className="space-y-5">
+          <section>
+            <h3 className="mb-1.5 text-sm font-semibold">Parents / guardians</h3>
+            <ul className="space-y-1.5">{linkedParents.length ? linkedParents.map((p) => row(p.id, `${p.firstName} ${p.lastName}`, () => void run(() => unlinkParent(p, student), 'Parent removed'))) : <li className="text-sm text-muted">None linked yet.</li>}</ul>
+            <div className="mt-2 flex gap-2"><Select aria-label="Add parent" value={parentPick} onChange={(e) => setParentPick(e.target.value)}><option value="">Add a parent…</option>{[...freeParents].sort(byName).map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}</Select>
+              <Button disabled={!parentPick} onClick={() => { const p = parents.data.find((x) => x.id === parentPick); if (p) void run(() => linkParent(p, student), 'Parent linked'); setParentPick(''); }}>Add</Button></div>
+          </section>
+          <section>
+            <h3 className="mb-1.5 text-sm font-semibold">Teachers</h3>
+            <ul className="space-y-1.5">{linkedTeachers.length ? linkedTeachers.map((t) => row(t.id, `${t.firstName} ${t.lastName}`, () => void run(() => unlinkTeacher(t, student), 'Teacher removed'))) : <li className="text-sm text-muted">None linked yet.</li>}</ul>
+            <div className="mt-2 flex gap-2"><Select aria-label="Add teacher" value={teacherPick} onChange={(e) => setTeacherPick(e.target.value)}><option value="">Add a teacher…</option>{[...freeTeachers].sort(byName).map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}</Select>
+              <Button disabled={!teacherPick} onClick={() => { const t = staff.data.find((x) => x.id === teacherPick); if (t) void run(() => linkTeacher(t, student), 'Teacher linked'); setTeacherPick(''); }}>Add</Button></div>
+            <p className="mt-1 text-xs text-muted">Only staff who already have a login can be linked.</p>
+          </section>
         </div>
       )}
     </Dialog>
@@ -72,6 +144,7 @@ export function StudentsPage() {
   const [linking, setLinking] = useState<SRow | null>(null);
   const [parentId, setParentId] = useState('');
   const [account, setAccount] = useState<SRow | null>(null);
+  const [linksFor, setLinksFor] = useState<string | null>(null);
   const [promote, setPromote] = useState(false);
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
 
@@ -84,14 +157,15 @@ export function StudentsPage() {
       classRef(), { name: 'programme', label: 'Programme', type: 'select', options: ['Academic', 'Islamic', 'Academic + Islamic', 'Coding / ICT', 'Skills'].map((v) => ({ value: v, label: v })) },
       { name: 'admissionStatus', label: 'Admission status', type: 'select', required: true, defaultValue: 'enrolled', options: ['applicant', 'admitted', 'enrolled', 'graduated', 'withdrawn'].map((v) => ({ value: v, label: v })) },
       { name: 'status', label: 'Student status', type: 'select', required: true, defaultValue: 'active', options: ['active', 'suspended', 'inactive'].map((v) => ({ value: v, label: v })) },
+      { name: 'isAdult', label: 'Adult learner (signs in with their own email)', type: 'checkbox', hint: 'Leave unticked for children. They sign in with a username and password.' },
       { name: 'guardianPhone', label: 'Guardian phone', type: 'tel' }, { name: 'address', label: 'Address', type: 'text', span: 2 },
       { name: 'stateOfOrigin', label: 'State of origin', type: 'text' }, { name: 'religion', label: 'Religion', type: 'text' }, { name: 'bloodGroup', label: 'Blood group', type: 'text' }, { name: 'allergies', label: 'Allergies / medical notes', type: 'textarea' },
       { name: 'photoRef', label: 'Photograph (private)', type: 'photo' },
     ],
     columns: [
-      { key: 'n', header: 'Student', primary: true, cell: (r) => <div className="flex items-center gap-3"><SecureAvatar name={fullName(r)} collection="students" docId={r.id} photoRef={r.photoRef} legacyUrl={r.photoUrl} /><div><p className="font-medium">{fullName(r)}</p><p className="text-xs text-muted">{r.studentNo}</p></div></div> },
+      { key: 'n', header: 'Student', primary: true, cell: (r) => <div className="flex items-center gap-3"><SecureAvatar name={fullName(r)} collection="students" docId={r.id} photoRef={r.photoRef} legacyUrl={r.photoUrl} /><div><p className="font-medium">{fullName(r)}</p><p className="text-xs text-muted">{r.studentNo}{r.username ? ` · ${r.username}` : ''}</p></div></div> },
       { key: 'c', header: 'Class', cell: (r) => r.className ?? '—' }, { key: 'a', header: 'Admission', cell: (r) => <StatusBadge status={r.admissionStatus} /> }, { key: 's', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
-      { key: 'p', header: 'Parents', cell: (r) => (r.parentIds ?? []).length },
+      { key: 'p', header: 'Parents', cell: (r) => (r.parentIds ?? []).length }, { key: 't', header: 'Teachers', cell: (r) => (r.teacherIds ?? []).length },
     ],
     searchKeys: ['firstName', 'lastName', 'studentNo', 'className'], sort: byName,
     filters: [{ name: 'classId', label: 'Class', options: classes.data.map((c) => ({ value: c.id, label: c.name })) }, { name: 'status', label: 'Status', options: ['active', 'suspended', 'inactive'].map((v) => ({ value: v, label: v })) }],
@@ -109,6 +183,7 @@ export function StudentsPage() {
     rowActions: (r) => (
       <>
         <Button size="icon" variant="ghost" aria-label="Open profile" onClick={() => nav(`/app/ems/students/${r.id}`)}><ArrowUpRight className="h-4 w-4" /></Button>
+        {write && <Button size="icon" variant="ghost" aria-label="Linked people" onClick={() => setLinksFor(r.id)}><Users className="h-4 w-4" /></Button>}
         {write && <Button size="icon" variant="ghost" aria-label="Link parent" onClick={() => { setLinking(r); setParentId(''); }}><Link2 className="h-4 w-4" /></Button>}
         {write && !r.studentUid && <Button size="icon" variant="ghost" aria-label="Create student login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>}
       </>
@@ -136,8 +211,10 @@ export function StudentsPage() {
         <Field label="Parent / guardian">{(a) => <Select {...a} value={parentId} onChange={(e) => setParentId(e.target.value)}><option value="">Select…</option>{[...parents.data].sort(byName).map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName} — {p.phone}</option>)}</Select>}</Field>
         <p className="mt-2 text-xs text-muted">The parent must be registered first (EMS → Parents). One parent can be linked to many children.</p>
       </Dialog>
-      {account && <AccountDialog open onClose={() => setAccount(null)} roles={['student']} defaults={{ name: fullName(account), email: '', role: 'student', studentId: account.id, classId: account.classId }}
-        onCreated={async (uid) => { await patchDoc(C.students, account.id, { studentUid: uid }); }} />}
+      {account && <AccountDialog open onClose={() => setAccount(null)} roles={['student']} takenUsernames={students.data.map((s) => s.username ?? '').filter(Boolean)}
+        defaults={{ name: fullName(account), email: '', role: 'student', studentId: account.id, classId: account.classId, firstName: account.firstName, isAdult: !!account.isAdult }}
+        onCreated={async (uid, username) => { await patchDoc(C.students, account.id, { studentUid: uid, ...(username ? { username } : {}) }); }} />}
+      <LinkedPeopleDialog studentId={linksFor} onClose={() => setLinksFor(null)} />
       <Dialog open={promote} onClose={() => setPromote(false)} title="Promote a class" description="Moves all active students from one class to another and records history." size="sm"
         footer={<><Button variant="outline" onClick={() => setPromote(false)}>Cancel</Button><Button onClick={() => void doPromote()}>Promote</Button></>}>
         <div className="space-y-4">
