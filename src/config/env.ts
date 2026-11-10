@@ -48,7 +48,7 @@ export const firebaseConfig: Partial<FirebaseWebConfig> = {
 export const firebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 
 /** Public URL of the file gateway. Env var wins over src/config/files.json. */
-export const filesGatewayUrl: string = ((env.VITE_FILES_GATEWAY_URL as string | undefined) ?? filesConfig.gatewayUrl ?? '').trim().replace(/\/+$/, '');
+export const filesGatewayUrl: string = ((env.VITE_FILES_GATEWAY_URL as string | undefined)?.trim() || filesConfig.gatewayUrl || '').trim().replace(/\/+$/, '');
 
 export const flags = {
   /** True when the file gateway (Supabase Edge Function) is configured. File uploads need it. */
