@@ -7,8 +7,9 @@
 //
 // Secrets (Supabase dashboard > Edge Functions > Secrets), never in GitHub or the app:
 //   FIREBASE_PROJECT_ID, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, ALLOWED_ORIGINS (optional)
+//   FIREBASE_SERVICE_ACCOUNT (optional; the whole service-account JSON. Only needed for resetting children's passwords)
 // Supabase injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY automatically.
-import { createRemoteJWKSet, jwtVerify } from 'npm:jose@5';
+import { SignJWT, createRemoteJWKSet, importPKCS8, jwtVerify } from 'npm:jose@5';
 import { DOWNLOADS, PURPOSES, buildPath, canDeleteCloudinary, canDeleteSupabase, checkUpload, hasRole, pathAllowed, type DownloadCollection, type Purpose } from './policy.ts';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
@@ -90,6 +91,22 @@ async function sha1(s: string) {
   const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(s));
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+/** Google access token for the Firebase service account (only used to reset children's passwords). */
+async function adminToken(): Promise<string> {
+  const raw = env('FIREBASE_SERVICE_ACCOUNT');
+  if (!raw) throw new HttpError(500, 'Password reset is not set up yet. Add the FIREBASE_SERVICE_ACCOUNT secret (see docs/STUDENT_LOGIN.md).');
+  let sa: { client_email?: string; private_key?: string };
+  try { sa = JSON.parse(raw); } catch { throw new HttpError(500, 'FIREBASE_SERVICE_ACCOUNT is not valid JSON.'); }
+  if (!sa.client_email || !sa.private_key) throw new HttpError(500, 'FIREBASE_SERVICE_ACCOUNT is missing client_email or private_key.');
+  const key = await importPKCS8(sa.private_key, 'RS256');
+  const assertion = await new SignJWT({ scope: 'https://www.googleapis.com/auth/identitytoolkit https://www.googleapis.com/auth/cloud-platform' })
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' }).setIssuer(sa.client_email).setSubject(sa.client_email)
+    .setAudience('https://oauth2.googleapis.com/token').setIssuedAt().setExpirationTime('55m').sign(key);
+  const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }) });
+  if (!r.ok) throw new HttpError(502, 'Could not authorise the password service. Check the service-account secret.');
+  return ((await r.json()) as { access_token: string }).access_token;
+}
+
 const ALLOWED_FORMATS = 'jpg,jpeg,png,webp,gif,mp3,m4a,aac,wav,ogg,pdf,doc,docx,xls,xlsx,ppt,pptx,txt';
 
 // deno-lint-ignore no-explicit-any
@@ -162,6 +179,23 @@ async function handle(req: Request, b: any): Promise<unknown> {
       return { ok: true };
     }
     throw new HttpError(400, 'Unknown provider.');
+  }
+  if (action === 'reset-student-password') {
+    if (!['super_admin', 'admin', 'principal', 'admissions'].some((r) => roles.includes(r))) throw new HttpError(403, 'Your role cannot reset passwords.');
+    const target = String(b.uid ?? ''); const password = String(b.password ?? '');
+    if (!/^[A-Za-z0-9]{20,40}$/.test(target)) throw new HttpError(400, 'Invalid account.');
+    if (password.length < 6 || password.length > 64) throw new HttpError(400, 'The password needs 6 to 64 characters.');
+    // Read the target profile AS THE CALLER. Only children's username accounts can be reset here, never staff or parents.
+    const f = await readDoc(token, `users/${target}`);
+    const targetRoles = (f?.roles?.arrayValue?.values ?? []).map((v) => v.stringValue ?? '').filter(Boolean);
+    if (!f || str(f.loginType) !== 'username' || targetRoles.length !== 1 || targetRoles[0] !== 'student') throw new HttpError(403, 'Only children’s username accounts can be reset here.');
+    const at = await adminToken();
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:update`, {
+      method: 'POST', headers: { Authorization: `Bearer ${at}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ localId: target, password, validSince: String(Math.floor(Date.now() / 1000)) }),   // validSince signs out devices already logged in
+    });
+    if (!r.ok) { console.error('reset failed', r.status, await r.text()); throw new HttpError(502, 'Could not reset the password. Try again.'); }
+    return { ok: true };
   }
   void hasRole;
   throw new HttpError(400, 'Unknown action.');
