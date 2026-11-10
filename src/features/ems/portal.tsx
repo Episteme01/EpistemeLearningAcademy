@@ -19,6 +19,7 @@ import { fullName } from '@/services/ems';
 import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { audit } from '@/services/audit';
+import { ChildHomework } from '@/features/lms/homework';
 import { ReportCardSheet } from './results';
 import { ReceiptView, SCHOOL_DEFAULTS, useSchool } from './operations';
 import { AdmissionLetterDialog, canPrintAdmissionLetter } from './AdmissionLetter';
@@ -27,7 +28,7 @@ import type { AttendanceRecord, ClassRoom, CourseEnrollment, Invoice, Payment, R
 const FOREST = '#0B3D2E'; const GOLD = '#C8A45A';
 
 /* ----------------------------------------------------------- child portal */
-type Tab = 'profile' | 'results' | 'attendance' | 'fees' | 'learning';
+type Tab = 'profile' | 'results' | 'attendance' | 'fees' | 'learning' | 'homework';
 
 export function ChildPortal({ student }: { student: WithId<Student> }) {
   const [tab, setTab] = useState<Tab>('results');
@@ -55,7 +56,7 @@ export function ChildPortal({ student }: { student: WithId<Student> }) {
   const owing = inv.data.filter((i) => i.status !== 'cancelled').reduce((s, i) => s + i.balance, 0);
   const termName = (id: string) => { const t = terms.data.find((x) => x.id === id); return t ? `${t.sessionName ?? ''} ${t.name}`.trim() : id; };
   const termsWithResults = [...new Set(results.data.map((r) => r.termId))];
-  const tabs: { id: Tab; label: string }[] = [{ id: 'results', label: 'Results' }, { id: 'attendance', label: 'Attendance' }, { id: 'fees', label: 'Fees' }, { id: 'learning', label: 'Learning' }, { id: 'profile', label: 'Profile' }];
+  const tabs: { id: Tab; label: string }[] = [{ id: 'results', label: 'Results' }, { id: 'attendance', label: 'Attendance' }, { id: 'fees', label: 'Fees' }, { id: 'learning', label: 'Learning' }, ...(viewer === 'student' ? [] : [{ id: 'homework' as Tab, label: 'Homework' }]), { id: 'profile', label: 'Profile' }];
 
   return (
     <div>
@@ -71,6 +72,7 @@ export function ChildPortal({ student }: { student: WithId<Student> }) {
             {termsWithResults.length > 1 && <Card><CardHeader title="Performance trend" /><CardBody><div className="h-56"><ResponsiveContainer><LineChart data={termsWithResults.map((t) => { const rs = results.data.filter((r) => r.termId === t); return { term: termName(t), average: Math.round((rs.reduce((s, r) => s + r.total, 0) / rs.length) * 10) / 10 }; })}><CartesianGrid stroke="#e6e3d9" vertical={false} /><XAxis dataKey="term" tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} tick={{ fontSize: 11 }} /><Tooltip /><Line dataKey="average" stroke={FOREST} strokeWidth={2} dot={{ fill: GOLD, r: 4 }} /></LineChart></ResponsiveContainer></div></CardBody></Card>}</div>))}
         {tab === 'attendance' && <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-4"><StatCard label="Present" value={attSum.present} tone="ok" /><StatCard label="Absent" value={attSum.absent} tone="danger" /><StatCard label="Late" value={attSum.late} tone="gold" /><StatCard label="Excused" value={attSum.excused} /></div>
           <Card>{att.data.length === 0 ? <EmptyState title="No attendance recorded" /> : <TableWrap><thead><tr><Th>Date</Th><Th>Status</Th></tr></thead><tbody>{[...att.data].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60).map((a) => <tr key={a.id}><Td>{fmtDate(a.date)}</Td><Td><StatusBadge status={a.status} /></Td></tr>)}</tbody></TableWrap>}</Card></div>}
+        {tab === 'homework' && <ChildHomework studentUid={student.studentUid ?? ''} viewer={viewer} />}
         {tab === 'fees' && <div className="space-y-5"><Card>{inv.data.length === 0 ? <EmptyState title="No invoices" /> : <TableWrap><thead><tr><Th>Invoice</Th><Th>Term</Th><Th>Total</Th><Th>Paid</Th><Th>Balance</Th><Th>Status</Th></tr></thead><tbody>{inv.data.map((i) => <tr key={i.id}><Td>{i.invoiceNo}</Td><Td>{i.termName}</Td><Td>{fmtMoney(i.total, i.currency)}</Td><Td>{fmtMoney(i.paid, i.currency)}</Td><Td className="font-medium">{fmtMoney(i.balance, i.currency)}</Td><Td><StatusBadge status={i.status} /></Td></tr>)}</tbody></TableWrap>}</Card>
           {pay.data.length > 0 && <Card><CardHeader title="Payment receipts" /><TableWrap><thead><tr><Th>Receipt</Th><Th>Date</Th><Th>Amount</Th><Th /></tr></thead><tbody>{pay.data.map((p) => <tr key={p.id}><Td>{p.receiptNo}</Td><Td>{fmtDate(p.paidAt)}</Td><Td>{fmtMoney(p.amount, p.currency)}</Td><Td><Button size="icon" variant="ghost" aria-label="Receipt" onClick={() => setReceipt(p)}><ReceiptIcon className="h-4 w-4" /></Button></Td></tr>)}</tbody></TableWrap></Card>}</div>}
         {tab === 'learning' && (enr.data.length === 0 ? <Card><EmptyState title="No courses yet" description={student.studentUid ? 'Enrolled courses and progress appear here.' : 'This learner has no portal login yet.'} /></Card> : <Card><ul className="divide-y divide-line">{enr.data.map((e) => <li key={e.id} className="p-4"><div className="flex justify-between text-sm"><span className="font-medium">{e.courseTitle}</span><span>{e.progressPct}%</span></div><Progress className="mt-2" value={e.progressPct} /></li>)}</ul></Card>)}
