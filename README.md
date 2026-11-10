@@ -85,3 +85,7 @@ See `docs/PHASE3_ATTENDANCE.md`.
 
 ## Phase 4
 See `docs/PHASE4_MEDIA_RESOURCES.md` (media library, picker, Resources centre).
+
+
+## Phase 5
+Notifications (email, phone, in-app), notices, homework with parent view, and analytics. Setup: `docs/PHASE5_NOTIFICATIONS_HOMEWORK_ANALYTICS.md`.
