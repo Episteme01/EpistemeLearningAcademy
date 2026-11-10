@@ -6,8 +6,12 @@ import notifyConfig from '@/config/notify.json';
 
 /** Public (safe) VAPID key. The private key lives only in Supabase secrets. */
 export const vapidPublicKey: string = ((import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim() || notifyConfig.vapidPublicKey || '').trim();
-/** The notify function sits next to the files function: .../functions/v1/files -> .../functions/v1/notify */
-export const notifyUrl: string = filesGatewayUrl ? filesGatewayUrl.replace(/\/files$/, '/notify') : '';
+/**
+ * Address of the notify function. Taken from notify.json if set, otherwise built from the file-service URL's project
+ * (the files function can have any name, e.g. 'quick-worker', so we only reuse the part before /functions/v1/).
+ */
+const base = filesGatewayUrl.split('/functions/v1/')[0] ?? '';
+export const notifyUrl: string = ((notifyConfig as { notifyUrl?: string }).notifyUrl?.trim().replace(/\/+$/, '')) || (filesGatewayUrl && filesGatewayUrl.includes('/functions/v1/') ? `${base}/functions/v1/notify` : '');
 export const notifyOn = notifyUrl !== '';
 
 export async function notifyCall<T>(body: Record<string, unknown>): Promise<T> {
