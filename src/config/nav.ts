@@ -63,6 +63,7 @@ export const NAV: NavItem[] = [
   { label: 'Report cards', to: '/app/ems/report-cards', icon: ScrollText, platform: 'ems', roles: [...ACADEMIC, 'director'], group: 'Results' },
   { label: 'Grading scales', to: '/app/ems/grading', icon: Compass, platform: 'ems', roles: ACAD_LEAD, group: 'Results' },
   { label: 'Users & access', to: '/app/ems/users', icon: Users, platform: 'ems', roles: ADMINS, group: 'Administration' },
+  { label: 'Reports', to: '/app/reports', icon: LineChart, platform: 'ems', roles: ['super_admin', 'admin', 'principal', 'director', 'finance'], group: 'Administration' },
   { label: 'Audit log', to: '/app/ems/audit', icon: Shield, platform: 'ems', roles: ['super_admin', 'director'], group: 'Administration' },
   { label: 'School settings', to: '/app/ems/settings', icon: Settings, platform: 'ems', roles: ADMINS, group: 'Administration' },
   { label: 'Seed demo data', to: '/app/ems/seed', icon: Compass, platform: 'ems', roles: ['super_admin'], group: 'Administration' },
