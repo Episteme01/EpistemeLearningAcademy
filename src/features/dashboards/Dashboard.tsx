@@ -14,17 +14,17 @@ interface Announcement { title: string; publishedAt?: unknown; createdAt?: unkno
 
 type Link_ = [label: string, to: string];
 const LINKS: Record<Role, Link_[]> = {
-  super_admin: [['Timetable', '/app/schedule'], ['Users & access', '/app/ems/users'], ['Students', '/app/ems/students'], ['Website pages', '/app/cms/pages'], ['Seed demo data', '/app/ems/seed'], ['Audit log', '/app/ems/audit']],
-  admin: [['Timetable', '/app/schedule'], ['Users & access', '/app/ems/users'], ['Students', '/app/ems/students'], ['Website pages', '/app/cms/pages'], ['School settings', '/app/ems/settings']],
-  director: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['School overview', '/app/ems'], ['Invoices', '/app/ems/invoices'], ['Audit log', '/app/ems/audit'], ['CBT results', '/app/cbt/results']],
-  principal: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Approve results', '/app/ems/approvals'], ['Report cards', '/app/ems/report-cards'], ['Attendance', '/app/ems/attendance'], ['Announcements', '/app/cms/announcements']],
+  super_admin: [['Timetable', '/app/schedule'], ['Users & access', '/app/ems/users'], ['Students', '/app/ems/students'], ['Website pages', '/app/cms/pages'], ['Seed demo data', '/app/ems/seed'], ['Audit log', '/app/ems/audit'], ['Notices', '/app/notices'], ['Analytics', '/app/analytics']],
+  admin: [['Timetable', '/app/schedule'], ['Users & access', '/app/ems/users'], ['Students', '/app/ems/students'], ['Website pages', '/app/cms/pages'], ['School settings', '/app/ems/settings'], ['Notices', '/app/notices'], ['Analytics', '/app/analytics']],
+  director: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['School overview', '/app/ems'], ['Invoices', '/app/ems/invoices'], ['Audit log', '/app/ems/audit'], ['CBT results', '/app/cbt/results'], ['Notices', '/app/notices'], ['Analytics', '/app/analytics']],
+  principal: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Approve results', '/app/ems/approvals'], ['Report cards', '/app/ems/report-cards'], ['Attendance', '/app/ems/attendance'], ['Announcements', '/app/cms/announcements'], ['Notices', '/app/notices'], ['Analytics', '/app/analytics']],
   cms_editor: [['Pages', '/app/cms/pages'], ['Blog posts', '/app/cms/posts'], ['Homepage', '/app/cms/homepage'], ['Media', '/app/cms/media'], ['Enquiries', '/app/cms/enquiries']],
   cms_author: [['Write a post', '/app/cms/posts'], ['Pages', '/app/cms/pages'], ['Media', '/app/cms/media']],
   admissions: [['Admission enquiries', '/app/ems/admissions'], ['Students', '/app/ems/students'], ['Parents', '/app/ems/parents']],
   finance: [['Invoices', '/app/ems/invoices'], ['Payments', '/app/ems/payments'], ['Fee structures', '/app/ems/fee-structures']],
-  teacher: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['Enter scores', '/app/ems/results'], ['Attendance', '/app/ems/attendance'], ['My courses', '/app/lms/courses'], ['Question bank', '/app/cbt/questions'], ['Examinations', '/app/cbt/exams']],
-  parent: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['My children', '/app/ems/children'], ['Announcements', '/app/ems/news'], ['Learning progress', '/app/lms/progress']],
-  student: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['My examinations', '/app/cbt/my-exams'], ['My learning', '/app/lms/my-courses'], ['Assignments', '/app/lms/assignments'], ['My records', '/app/ems/my'], ['Live classes', '/app/lms/live']],
+  teacher: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['Enter scores', '/app/ems/results'], ['Attendance', '/app/ems/attendance'], ['My courses', '/app/lms/courses'], ['Question bank', '/app/cbt/questions'], ['Examinations', '/app/cbt/exams'], ['Notices', '/app/notices'], ['Analytics', '/app/analytics']],
+  parent: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['My children', '/app/ems/children'], ['Announcements', '/app/ems/news'], ['Learning progress', '/app/lms/progress'], ['Notices', '/app/notices']],
+  student: [['Timetable', '/app/schedule'], ['Class attendance', '/app/attendance'], ['Resources', '/app/resources'], ['My examinations', '/app/cbt/my-exams'], ['My learning', '/app/lms/my-courses'], ['Assignments', '/app/lms/assignments'], ['My records', '/app/ems/my'], ['Live classes', '/app/lms/live'], ['Notices', '/app/notices']],
 };
 const NOTE: Partial<Record<Role, string>> = {
   super_admin: 'You have full access. Create accounts under Users & access and assign roles.',
