@@ -10,6 +10,7 @@ import { C } from '@/config/collections';
 import type { UserProfile } from '@/types/models';
 import { rolesOf, type Role } from '@/config/permissions';
 import { setAuditActorRole } from '@/services/audit';
+import { loginEmail } from '@/lib/studentLogin';
 
 type Status = 'loading' | 'signedOut' | 'ready' | 'noProfile' | 'inactive';
 
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string, remember: boolean) => {
     await setPersistence(auth(), remember ? browserLocalPersistence : browserSessionPersistence);
-    await signInWithEmailAndPassword(auth(), email.trim(), password);
+    await signInWithEmailAndPassword(auth(), loginEmail(email), password);
   }, []);
 
   const logout = useCallback(async () => {

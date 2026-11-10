@@ -25,13 +25,14 @@ export function LoginPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(''); setInfo('');
-    if (!email || !password) return setError('Enter your email and password.');
+    if (!email || !password) return setError('Enter your email or username, and your password.');
     setBusy(true);
     try { await login(email, password, remember); } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   };
   const forgot = async () => {
     setError(''); setInfo('');
     if (!email) return setError('Enter your email first, then press “Forgot password”.');
+    if (!email.includes('@')) return setInfo('Students: ask your teacher or the school office to reset your password.');
     try { await resetPassword(email); } catch { /* do not reveal whether the account exists */ }
     setInfo('If an account exists for that email, a reset link has been sent.');
   };
@@ -62,7 +63,7 @@ export function LoginPage() {
           )}
 
           <form onSubmit={(e) => void submit(e)} className="mt-6 space-y-4" noValidate>
-            <Field label="Email" required>{(a) => <Input {...a} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
+            <Field label="Email or student username" required>{(a) => <Input {...a} type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
             <Field label="Password" required>{(a) => <Input {...a} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
             <div className="flex items-center justify-between">
               <Checkbox label="Keep me signed in" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
