@@ -10,6 +10,7 @@ import { C } from '@/config/collections';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { createDoc, removeDoc } from '@/services/db';
+import { audit } from '@/services/audit';
 import { notifyCall, notifyOn } from '@/services/push';
 import { cleanOffsets } from '@/lib/notifyPolicy';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
@@ -48,6 +49,7 @@ export function NoticesPage() {
     try {
       const cls = classes.data.find((c) => c.id === f.classId);
       const id = await createDoc(C.notices, { audience: f.audience, ...(needsClass ? { classId: f.classId, className: cls?.name ?? '' } : {}), title: f.title.trim(), body: f.body.trim(), sendEmail: f.sendEmail, sendPush: f.sendPush, status: 'queued', createdBy: uid, createdByName: profile?.displayName ?? '', createdAt: serverTimestamp() });
+      void audit('notice.create', `notices/${id}`, `${f.audience}: ${f.title.trim()}`);
       setOpen(false); setF({ ...f, title: '', body: '' });
       if (notifyOn) { try { await notifyCall({ action: 'run-now', noticeId: id }); toast.success('Notice sent'); } catch { toast.success('Notice queued. It will go out within 5 minutes.'); } }
       else toast.success('Notice saved. It will go out once the notification service is switched on.');
