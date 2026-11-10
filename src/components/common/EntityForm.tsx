@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,32 @@ function RefSelect({ field, id, value, onChange, invalid, describedBy }: {
   );
 }
 
+/** Tick as many documents as needed (e.g. a class's subjects). Stores the ids, and optionally their labels in `labelField`. */
+function MultiRefPicker({ field, value, onChange }: { field: FieldDef; value: string[]; onChange: (ids: string[], labels: string[]) => void }) {
+  const ref = field.ref!;
+  const { data, loading } = useCollection<Record<string, unknown>>(ref.collection, () => [], ref.collection);
+  const [q, setQ] = useState('');
+  const rows = (data as Row[]).filter((r) => (ref.filter ? ref.filter(r) : true)).map((r) => ({ id: r.id, label: ref.label(r) })).sort((a, b) => a.label.localeCompare(b.label));
+  const shown = rows.filter((r) => r.label.toLowerCase().includes(q.trim().toLowerCase()));
+  const labelsOf = (ids: string[]) => rows.filter((r) => ids.includes(r.id)).map((r) => r.label);
+  const set = (ids: string[]) => onChange(ids, labelsOf(ids));
+  const toggle = (id: string) => set(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  return (
+    <div className="rounded-md border border-line p-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <input className="min-w-0 flex-1 rounded border border-line px-2 py-1 text-sm" placeholder="Search..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button type="button" size="sm" variant="outline" onClick={() => set([...new Set([...value, ...shown.map((r) => r.id)])])}>Select all shown</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => set([])}>Clear</Button>
+      </div>
+      <p className="mb-1 text-xs text-muted">{value.length} selected</p>
+      <div className="max-h-56 space-y-1 overflow-y-auto">
+        {loading ? <p className="text-sm text-muted">Loading...</p> : shown.length === 0 ? <p className="text-sm text-muted">Nothing found.</p> : shown.map((r) => (
+          <label key={r.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.includes(r.id)} onChange={() => toggle(r.id)} />{r.label}</label>))}
+      </div>
+    </div>
+  );
+}
+
 export function EntityForm({ fields, initial, onSubmit, onCancel, submitLabel = 'Save', formId }: {
   fields: FieldDef[];
   initial: Record<string, unknown> | null;
@@ -54,7 +80,7 @@ export function EntityForm({ fields, initial, onSubmit, onCancel, submitLabel = 
   return (
     <form id={formId} onSubmit={(e) => { void submit(e); }} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {visible.map((f) => {
-        const span = f.span === 2 || f.type === 'textarea' || f.type === 'richtext' || f.type === 'image' || f.type === 'list' ? 'sm:col-span-2' : '';
+        const span = f.span === 2 || f.type === 'textarea' || f.type === 'richtext' || f.type === 'image' || f.type === 'list' || f.type === 'multiref' ? 'sm:col-span-2' : '';
         if (f.type === 'checkbox') {
           return (
             <div key={f.name} className={cn(span, 'self-end pb-2')}>
@@ -86,6 +112,13 @@ export function EntityForm({ fields, initial, onSubmit, onCancel, submitLabel = 
                           field.onChange(v);
                           if (f.ref?.labelField) setValue(f.ref.labelField, row ? f.ref.label(row) : '');
                         }} />
+                    )} />
+                  );
+                case 'multiref':
+                  return (
+                    <Controller control={control} name={f.name} render={({ field }) => (
+                      <MultiRefPicker field={f} value={Array.isArray(field.value) ? (field.value as string[]) : []}
+                        onChange={(ids, labels) => { field.onChange(ids); if (f.ref?.labelField) setValue(f.ref.labelField, labels); }} />
                     )} />
                   );
                 case 'image':
