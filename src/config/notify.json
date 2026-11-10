@@ -1,5 +1,5 @@
 {
-  "vapidPublicKey": "",
-  "notifyUrl": "",
+  "vapidPublicKey": "BDn5W8p7Pj35zio9Mll_EYa8Xd7uC9kE1anaviNsZCU4UwWEyNQmXWb2TTVIHY_-3YesHy2ggA1zinrMNaPxBjc",
+  "notifyUrl": "https://twolvfxldwcedcmqfbdi.supabase.co/functions/v1/notify",
   "_note": "notifyUrl is optional: leave empty to use https://<project-ref>.supabase.co/functions/v1/notify. vapidPublicKey is the PUBLIC push key only. Never put a private key here."
 }
