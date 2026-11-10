@@ -26,7 +26,7 @@ import { classRef } from './refs';
 import { LinkedPeopleDialog } from './people';
 
 type Row = Record<string, unknown> & { id: string };
-export interface SchoolSettings { schoolName: string; currency: string; address: string; paymentNote: string; reportFooter: string; caMax: number; examMax: number }
+export interface SchoolSettings { schoolName: string; currency: string; address: string; paymentNote: string; reportFooter: string; caMax: number; examMax: number; admissionNote?: string }
 export const SCHOOL_DEFAULTS: SchoolSettings = { schoolName: BRAND.name, currency: 'NGN', address: BRAND.location, paymentNote: '', reportFooter: '', caMax: 40, examMax: 60 };
 export const useSchool = () => useSettings<SchoolSettings>('school', SCHOOL_DEFAULTS);
 

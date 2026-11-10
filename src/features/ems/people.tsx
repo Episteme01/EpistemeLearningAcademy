@@ -1,7 +1,8 @@
 import { SecureAvatar } from '@/components/common/SecureAvatar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Link2, KeyRound, ArrowUpRight, UserPlus, Users, X } from 'lucide-react';
+import { Link2, KeyRound, ArrowUpRight, UserPlus, Users, X, LockKeyhole, Printer } from 'lucide-react';
+import { where } from 'firebase/firestore';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { Button } from '@/components/ui/button';
 import { Dialog, useToast } from '@/components/ui/overlay';
@@ -12,10 +13,12 @@ import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
 import { can, rolesOf, ROLE_LABELS, type Role } from '@/config/permissions';
 import { createAccount, randomPassword } from '@/services/accounts';
-import { nextStaffNo, nextStudentNo } from '@/services/counters';
+import { nextStaffNo } from '@/services/counters';
 import { addStudentHistory, attachParentUid, fullName, linkParent, linkTeacher, promoteStudents, unlinkParent, unlinkTeacher } from '@/services/ems';
 import { kidPassword, makeUsername, STUDENT_EMAIL_DOMAIN } from '@/lib/studentLogin';
-import { getById, patchDoc } from '@/services/db';
+import { getById, listDocs, patchDoc } from '@/services/db';
+import { resetStudentPassword } from '@/services/studentAdmin';
+import { AdmissionLetterDialog, canPrintAdmissionLetter } from './AdmissionLetter';
 import { errorMessage, fmtDate } from '@/lib/utils';
 import { audit } from '@/services/audit';
 import type { ClassRoom, Parent, Staff, Student, UserProfile, WithId } from '@/types/models';
@@ -132,6 +135,33 @@ export function LinkedPeopleDialog({ studentId, onClose }: { studentId: string |
   );
 }
 
+/** Admin sets a new password for a child's username account and reads it out once. */
+function ResetPasswordDialog({ student, onClose }: { student: SRow; onClose: () => void }) {
+  const toast = useToast();
+  const [pw, setPw] = useState(() => kidPassword());
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const submit = async () => {
+    if (pw.length < 6) return toast.error('The password needs at least 6 characters.');
+    setBusy(true);
+    try { await resetStudentPassword(student.studentUid, pw); setDone(true); } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title="Reset password" description={fullName(student)} size="sm"
+      footer={done ? <Button onClick={onClose}>Done</Button> : <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={() => void submit()}>Set new password</Button></>}>
+      {done ? (
+        <div className="space-y-2 text-sm"><p className="text-ok">Password changed. Any device already signed in is signed out.</p>
+          <p className="rounded bg-cream p-3 font-mono text-[13px]">Username: {String(student.username ?? '')}<br />Password: {pw}</p><p className="text-xs text-muted">Shown once. Give it to the child or parent.</p></div>
+      ) : (
+        <div className="space-y-4">
+          <Field label="New password" hint="Made for you. You can change it. At least 6 characters.">{(a) => <Input {...a} value={pw} onChange={(e) => setPw(e.target.value.replace(/\s/g, ''))} />}</Field>
+          <p className="text-xs text-muted">Username stays <strong>{String(student.username ?? '')}</strong>.</p>
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
 /* ---------------------------------------------------------------- students */
 export function StudentsPage() {
   const { role, profile } = useAuth();
@@ -145,6 +175,8 @@ export function StudentsPage() {
   const [parentId, setParentId] = useState('');
   const [account, setAccount] = useState<SRow | null>(null);
   const [linksFor, setLinksFor] = useState<string | null>(null);
+  const [resetFor, setResetFor] = useState<SRow | null>(null);
+  const [letterFor, setLetterFor] = useState<SRow | null>(null);
   const [promote, setPromote] = useState(false);
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
 
@@ -152,6 +184,7 @@ export function StudentsPage() {
     collection: C.students, singular: 'Student', plural: 'Students', description: 'Registration, profiles, class allocation and records.', dialogSize: 'xl', auditActions: true,
     canCreate: write, canEdit: write, canDelete: can(role, 'students.delete'),
     fields: [
+      { name: 'studentNo', label: 'Admission number', type: 'text', required: true, placeholder: 'e.g. ELA/26/0001', hint: 'Typed in by you. Must be different for every learner.' },
       { name: 'firstName', label: 'First name', type: 'text', required: true }, { name: 'lastName', label: 'Surname', type: 'text', required: true }, { name: 'otherNames', label: 'Other names', type: 'text' },
       { name: 'gender', label: 'Gender', type: 'select', required: true, options: [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }] }, { name: 'dob', label: 'Date of birth', type: 'date' },
       classRef(), { name: 'programme', label: 'Programme', type: 'select', options: ['Academic', 'Islamic', 'Academic + Islamic', 'Coding / ICT', 'Skills'].map((v) => ({ value: v, label: v })) },
@@ -171,8 +204,15 @@ export function StudentsPage() {
     filters: [{ name: 'classId', label: 'Class', options: classes.data.map((c) => ({ value: c.id, label: c.name })) }, { name: 'status', label: 'Status', options: ['active', 'suspended', 'inactive'].map((v) => ({ value: v, label: v })) }],
     exportColumns: [{ header: 'Student No', value: (r) => r.studentNo }, { header: 'Name', value: (r) => fullName(r) }, { header: 'Class', value: (r) => r.className }, { header: 'Status', value: (r) => r.status }],
     beforeSave: async (p, existing) => {
-      if (existing) return p;
-      return { ...p, studentNo: await nextStudentNo(), studentUid: '', parentUids: [], parentIds: [], admittedAt: new Date().toISOString().slice(0, 10) };
+      const no = String(p.studentNo ?? '').trim();
+      if (!no) throw new Error('Enter the admission number.');
+      if (!existing || existing.studentNo !== no) {
+        const same = await listDocs<Student>(C.students, [where('studentNo', '==', no)]);
+        const other = same.find((s) => s.id !== existing?.id);
+        if (other) throw new Error(`Admission number ${no} already belongs to ${fullName(other)}.`);
+      }
+      if (existing) return { ...p, studentNo: no };
+      return { ...p, studentNo: no, studentUid: '', parentUids: [], parentIds: [], admittedAt: new Date().toISOString().slice(0, 10) };
     },
     afterSave: async (id, p, existing) => {
       if (existing && (existing.classId !== p.classId || existing.status !== p.status)) {
@@ -186,6 +226,8 @@ export function StudentsPage() {
         {write && <Button size="icon" variant="ghost" aria-label="Linked people" onClick={() => setLinksFor(r.id)}><Users className="h-4 w-4" /></Button>}
         {write && <Button size="icon" variant="ghost" aria-label="Link parent" onClick={() => { setLinking(r); setParentId(''); }}><Link2 className="h-4 w-4" /></Button>}
         {write && !r.studentUid && <Button size="icon" variant="ghost" aria-label="Create student login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>}
+        {write && r.studentUid && r.username && <Button size="icon" variant="ghost" aria-label="Reset password" onClick={() => setResetFor(r)}><LockKeyhole className="h-4 w-4" /></Button>}
+        {canPrintAdmissionLetter(r) && <Button size="icon" variant="ghost" aria-label="Admission letter" onClick={() => setLetterFor(r)}><Printer className="h-4 w-4" /></Button>}
       </>
     ),
     headerActions: write ? <Button variant="outline" onClick={() => setPromote(true)}>Promote class</Button> : undefined,
@@ -215,6 +257,8 @@ export function StudentsPage() {
         defaults={{ name: fullName(account), email: '', role: 'student', studentId: account.id, classId: account.classId, firstName: account.firstName, isAdult: !!account.isAdult }}
         onCreated={async (uid, username) => { await patchDoc(C.students, account.id, { studentUid: uid, ...(username ? { username } : {}) }); }} />}
       <LinkedPeopleDialog studentId={linksFor} onClose={() => setLinksFor(null)} />
+      {resetFor && <ResetPasswordDialog student={resetFor} onClose={() => setResetFor(null)} />}
+      <AdmissionLetterDialog student={letterFor} onClose={() => setLetterFor(null)} />
       <Dialog open={promote} onClose={() => setPromote(false)} title="Promote a class" description="Moves all active students from one class to another and records history." size="sm"
         footer={<><Button variant="outline" onClick={() => setPromote(false)}>Cancel</Button><Button onClick={() => void doPromote()}>Promote</Button></>}>
         <div className="space-y-4">
