@@ -180,7 +180,7 @@ service cloud.firestore {
     match /students/{id} {
       allow read: if isEmsStaff() || isStudentOf(resource.data) || isParentOf(resource.data);
       allow create, update: if inRoles(['super_admin', 'admin', 'principal', 'admissions']);
-      allow delete: if isAdminTier();
+      allow delete: if false;      // permanent deletion goes through the secure `records` backend only
       match /history/{hid} {
         allow read: if isEmsStaff();
         allow create: if inRoles(['super_admin', 'admin', 'principal', 'admissions']);
@@ -189,11 +189,12 @@ service cloud.firestore {
     match /parents/{id} {
       allow read: if isEmsStaff() || (signedIn() && resource.data.get('userUid', '') == uid());
       allow create, update: if inRoles(['super_admin', 'admin', 'principal', 'admissions']);
-      allow delete: if isAdminTier();
+      allow delete: if false;
     }
     match /staff/{id} {
       allow read: if isEmsStaff() || (signedIn() && resource.data.get('userUid', '') == uid());
-      allow write: if inRoles(['super_admin', 'admin', 'principal']);
+      allow create, update: if inRoles(['super_admin', 'admin', 'principal']);
+      allow delete: if false;
     }
 
     // ----------------------------------------------- EMS: academic structure
@@ -226,7 +227,14 @@ service cloud.firestore {
       allow read: if inRoles(['super_admin', 'director', 'principal', 'admin', 'finance'])
                   || isStudentOf(resource.data) || isParentOf(resource.data);
       allow create, update: if isFinanceStaff();
-      allow delete: if isSuper();
+      allow delete: if false;      // only the secure `records` backend deletes invoices
+    }
+    // Advance / previously-paid money waiting on a learner's account. Append-only: finance staff create and apply it, nobody deletes it from the app.
+    match /studentCredits/{id} {
+      allow read: if inRoles(['super_admin', 'director', 'principal', 'admin', 'finance'])
+                  || isStudentOf(resource.data) || isParentOf(resource.data);
+      allow create, update: if isFinanceStaff();
+      allow delete: if false;
     }
     match /payments/{id} {
       allow read: if inRoles(['super_admin', 'director', 'principal', 'admin', 'finance'])
