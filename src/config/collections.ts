@@ -27,6 +27,7 @@ export const C = {
   feeStructures: 'feeStructures',
   invoices: 'invoices',
   payments: 'payments',
+  studentCredits: 'studentCredits',
   gradingScales: 'gradingScales',
   results: 'results',
   reportCards: 'reportCards',
