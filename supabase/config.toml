@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.paystack]
 verify_jwt = false
+
+[functions.records]
+verify_jwt = false
