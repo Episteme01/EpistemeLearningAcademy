@@ -8,6 +8,8 @@
       // A project site lives at /<repo>/ so keep exactly 1 path segment.
       var pathSegmentsToKeep = 1;
       var l = window.location;
+      // collapse accidental double slashes (e.g. a shared link built with a trailing slash)
+      l = { protocol: l.protocol, hostname: l.hostname, port: l.port, pathname: l.pathname.replace(/\/{2,}/g, '/'), search: l.search, hash: l.hash, replace: function (u) { window.location.replace(u); } };
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
         l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
