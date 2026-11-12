@@ -57,4 +57,5 @@ export const flags = {
   functions: env.VITE_USE_CLOUD_FUNCTIONS === 'true',
 };
 
-export const SITE_URL = (env.VITE_SITE_URL as string | undefined) ?? (typeof window !== 'undefined' ? window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '') : '');
+/** Public address of the site, without a trailing slash. Falls back to wherever the visitor is right now. */
+export const SITE_URL = (((env.VITE_SITE_URL as string | undefined) ?? '').trim().replace(/\/+$/, '')) || (typeof window !== 'undefined' ? window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '') : '');
