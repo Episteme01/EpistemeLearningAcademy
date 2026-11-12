@@ -1,7 +1,7 @@
 /** Pure rules for linking login accounts to staff / student / parent records. */
 export type LinkKind = 'staff' | 'student' | 'parent';
 export interface UserLite { id: string; email?: string; displayName?: string; role?: string; roles?: string[]; status?: string; staffId?: string; studentId?: string; parentId?: string }
-export interface RecordLite { id: string; userUid?: string }
+export interface RecordLite { id: string; userUid?: string; studentUid?: string }
 
 export const USER_FIELD: Record<LinkKind, 'staffId' | 'studentId' | 'parentId'> = { staff: 'staffId', student: 'studentId', parent: 'parentId' };
 export const RECORD_FIELD: Record<LinkKind, 'userUid' | 'studentUid'> = { staff: 'userUid', student: 'studentUid', parent: 'userUid' };
@@ -11,7 +11,7 @@ export const rolesIn = (u: UserLite) => (u.roles && u.roles.length ? u.roles : u
 
 /** Why this login cannot be linked to this record (null = fine). */
 export function linkProblem(user: UserLite, record: RecordLite, kind: LinkKind, allRecords: RecordLite[]): string | null {
-  if (record[RECORD_FIELD[kind] === 'studentUid' ? ('studentUid' as 'userUid') : 'userUid']) return 'This record already has a login. Unlink it first.';
+  if (record[RECORD_FIELD[kind]]) return 'This record already has a login. Unlink it first.';
   if (user[USER_FIELD[kind]]) return 'This login is already linked to another record of this type.';
   if (allRecords.some((r) => r.id !== record.id && r[RECORD_FIELD[kind]] === user.id)) return 'This login is already linked to another record of this type.';
   if (user.status === 'suspended') return 'This login is suspended. Re-activate it first.';
