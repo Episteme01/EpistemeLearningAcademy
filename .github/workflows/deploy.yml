@@ -50,7 +50,7 @@ jobs:
         run: |
           # GitHub Pages only knows real files. A copy of index.html in each public route folder means
           # shared links such as /islamic?tab=hadith load straight away. Other paths still use 404.html.
-          for r in islamic community blog programmes admissions resources contact faq search login about privacy-policy terms; do
+          for r in islamic community spotlight blog programmes admissions resources contact faq search login about privacy-policy terms; do
             mkdir -p "dist/$r" && cp dist/index.html "dist/$r/index.html"
           done
       - uses: actions/upload-pages-artifact@v3
