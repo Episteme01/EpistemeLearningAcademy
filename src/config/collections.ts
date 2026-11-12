@@ -8,6 +8,7 @@ export const C = {
   categories: 'categories',
   announcements: 'announcements',
   islamicContent: 'islamicContent',
+  socialPosts: 'socialPosts',
   media: 'media',
   resources: 'resources',
   settings: 'settings',
@@ -45,6 +46,10 @@ export const C = {
   quizKeys: 'quizKeys',
   quizAttempts: 'quizAttempts',
   liveClasses: 'liveClasses',
+  // Curriculum Studio
+  curricula: 'curricula',
+  curriculumTopics: 'curriculumTopics',
+  schemeOfWork: 'schemeOfWork',
   // Timetable + live classes (Phase 2)
   timetableSeries: 'timetableSeries',
   sessions: 'sessions',

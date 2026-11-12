@@ -36,6 +36,7 @@ export const NAV: NavItem[] = [
   { label: 'Programmes', to: '/app/cms/programmes', icon: Layers, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Categories', to: '/app/cms/categories', icon: Tags, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Announcements', to: '/app/cms/announcements', icon: Megaphone, platform: 'cms', roles: [...CMS_PUB, 'principal'], group: 'Content' },
+  { label: 'Social Spotlight', to: '/app/cms/spotlight', icon: Megaphone, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Islamic content', to: '/app/cms/islamic', icon: Megaphone, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Homepage & hero', to: '/app/cms/homepage', icon: PenSquare, platform: 'cms', roles: CMS_PUB, group: 'Site' },
   { label: 'Navigation', to: '/app/cms/navigation', icon: MenuIcon, platform: 'cms', roles: CMS_PUB, group: 'Site' },
@@ -75,6 +76,7 @@ export const NAV: NavItem[] = [
 
   // ---- LMS
   { label: 'Overview', to: '/app/lms', icon: Library, platform: 'lms', roles: [...ACADEMIC, 'director', 'student', 'parent'], end: true },
+  { label: 'Curriculum', to: '/app/lms/curriculum', icon: ListChecks, platform: 'lms', roles: [...ACADEMIC, 'director'], group: 'Teach' },
   { label: 'Courses', to: '/app/lms/courses', icon: BookOpen, platform: 'lms', roles: ACADEMIC, group: 'Teach' },
   { label: 'Notices', to: '/app/notices', icon: Bell, platform: 'home', roles: ['super_admin', 'admin', 'principal', 'director', 'teacher', 'parent', 'student'], group: 'Overview' },
   { label: 'Analytics', to: '/app/analytics', icon: LineChart, platform: 'home', roles: ['super_admin', 'admin', 'principal', 'director', 'teacher'], group: 'Overview' },
