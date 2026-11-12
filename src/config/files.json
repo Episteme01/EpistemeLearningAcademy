@@ -1,4 +1,4 @@
 {
-  "gatewayUrl": "https://twolvfxldwcedcmqfbdi.supabase.co/functions/v1/quick-worker",
+  "gatewayUrl": "https://twolvfxldwcedcmqfbdi.supabase.co/functions/v1/files",
   "_note": "Public URL of the Supabase Edge Function 'files' (https://<project-ref>.supabase.co/functions/v1/files). Empty = uploads are switched off. Never put a secret here."
 }
