@@ -24,6 +24,7 @@ import { audit } from '@/services/audit';
 import type { ClassRoom, Parent, Staff, Student, UserProfile, WithId } from '@/types/models';
 import { classRef } from './refs';
 import { PurgeButton } from './PurgeButton';
+import { LinkAccount } from './LinkAccount';
 import { CLASS_LEVELS } from '@/features/public/content';
 
 type SRow = WithId<Student> & Record<string, unknown>;
@@ -230,6 +231,7 @@ export function StudentsPage() {
         {write && <Button size="icon" variant="ghost" aria-label="Linked people" onClick={() => setLinksFor(r.id)}><Users className="h-4 w-4" /></Button>}
         {write && <Button size="icon" variant="ghost" aria-label="Link parent" onClick={() => { setLinking(r); setParentId(''); }}><Link2 className="h-4 w-4" /></Button>}
         {write && !r.studentUid && <Button size="icon" variant="ghost" aria-label="Create student login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>}
+        <LinkAccount kind="student" record={r} label={fullName(r)} linkedUid={r.studentUid} />
         {write && r.studentUid && r.username && <Button size="icon" variant="ghost" aria-label="Reset password" onClick={() => setResetFor(r)}><LockKeyhole className="h-4 w-4" /></Button>}
         {canPrintAdmissionLetter(r) && <Button size="icon" variant="ghost" aria-label="Admission letter" onClick={() => setLetterFor(r)}><Printer className="h-4 w-4" /></Button>}
         {canPurge && <PurgeButton kind="student" id={r.id} />}
@@ -312,7 +314,7 @@ export function ParentsPage() {
     ],
     searchKeys: ['firstName', 'lastName', 'email', 'phone'], sort: byName,
     beforeSave: (p, e) => (e ? p : { ...p, studentIds: [], userUid: '' }),
-    rowActions: (r) => (<>{canPurge && <PurgeButton kind="parent" id={r.id} />}{write && !r.userUid ? <><Button size="icon" variant="ghost" aria-label="Create parent login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>{canLink && <Button size="icon" variant="ghost" aria-label="Link an existing login" onClick={() => { setLinkAcc(r); setPick(''); }}><UserPlus className="h-4 w-4" /></Button>}</> : null}</>),
+    rowActions: (r) => (<>{canPurge && <PurgeButton kind="parent" id={r.id} />}{write && !r.userUid ? <><Button size="icon" variant="ghost" aria-label="Create parent login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>{canLink && <Button size="icon" variant="ghost" aria-label="Link an existing login" onClick={() => { setLinkAcc(r); setPick(''); }}><UserPlus className="h-4 w-4" /></Button>}</> : null}{r.userUid && <LinkAccount kind="parent" record={r} label={`${r.firstName} ${r.lastName}`} linkedUid={r.userUid} />}</>),
   };
   return (
     <>
@@ -346,7 +348,7 @@ export function StaffPage() {
     ],
     searchKeys: ['firstName', 'lastName', 'staffNo', 'department', 'position'], sort: byName, filters: [{ name: 'status', label: 'Status', options: ['active', 'on_leave', 'resigned', 'inactive'].map((v) => ({ value: v, label: v })) }],
     beforeSave: async (p, e) => (e ? p : { ...p, staffNo: await nextStaffNo(), userUid: '' }),
-    rowActions: (r) => (<>{canPurge && <PurgeButton kind="staff" id={r.id} />}{write && can(role, 'users.manage') && !r.userUid ? <Button size="icon" variant="ghost" aria-label="Create staff login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button> : null}</>),
+    rowActions: (r) => (<>{canPurge && <PurgeButton kind="staff" id={r.id} />}{write && can(role, 'users.manage') && !r.userUid ? <Button size="icon" variant="ghost" aria-label="Create staff login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button> : null}<LinkAccount kind="staff" record={r} label={`${r.firstName} ${r.lastName}`} linkedUid={r.userUid} /></>),
   };
   return (
     <>
