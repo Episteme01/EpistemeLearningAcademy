@@ -182,6 +182,31 @@ export interface Invoice {
   status: 'unpaid' | 'partial' | 'paid' | 'overdue' | 'cancelled';
   dueDate?: string;
   currency: string;
+  /** fee category this invoice was made from (used to stop duplicates and to match advance payments) */
+  structureId?: string;
+  structureName?: string;
+  createdAt?: TS;
+}
+
+/** Money received before an invoice existed (or released from a deleted invoice). It waits on the learner's account until applied. */
+export interface StudentCredit {
+  studentId: string;
+  studentName: string;
+  studentUid: string;
+  parentUids: string[];
+  amount: number;
+  remaining: number;
+  receiptNo: string;
+  method: 'cash' | 'bank_transfer' | 'pos' | 'online';
+  reference?: string;
+  paidAt: string;
+  termId?: string;
+  termName?: string;
+  structureId?: string;
+  structureName?: string;
+  note?: string;
+  recordedBy: string;
+  currency: string;
   createdAt?: TS;
 }
 
@@ -199,6 +224,8 @@ export interface Payment {
   paidAt: string;
   recordedBy: string;
   currency: string;
+  /** set when the money came from an advance payment (credit) */
+  creditId?: string;
   gateway?: { provider: string; status: string };
   createdAt?: TS;
 }
