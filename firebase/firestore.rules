@@ -132,6 +132,10 @@ service cloud.firestore {
                   || isAnyStaff();
       allow write: if isCmsPublisher() || isRole('principal');
     }
+    match /islamicContent/{id} {
+      allow read: if resource.data.status == 'published' || isAnyStaff();
+      allow write: if isCmsPublisher();
+    }
     match /media/{id} {
       allow read: if true;
       allow create, update: if isCms();
