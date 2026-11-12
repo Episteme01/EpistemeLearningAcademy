@@ -1,15 +1,21 @@
-import { Printer } from 'lucide-react';
+import { useState } from 'react';
+import { Download, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/overlay';
+import { Dialog, useToast } from '@/components/ui/overlay';
 import { BRAND } from '@/config/brand';
 import { useSettings } from '@/hooks/useSettings';
 import { fmtDate, todayISO } from '@/lib/utils';
 import { SecureAvatar } from '@/components/common/SecureAvatar';
 import { SignatureBlock } from './SignatureBlock';
 import { fullName } from '@/services/ems';
+import { signedUrlFor } from '@/services/files';
+import { buildAdmissionLetterPdf } from '@/lib/pdf/letterPdf';
+import { downloadBytes, loadPdfImage } from '@/lib/pdf/pdfImages';
+import { errorMessage } from '@/lib/utils';
 import type { Student } from '@/types/models';
 
-const DEFAULTS = { schoolName: BRAND.name, address: BRAND.location, admissionNote: '' };
+const DEFAULTS = { schoolName: BRAND.name, address: BRAND.location, admissionNote: '', signatureUrl: '', stampUrl: '', signatoryName: '', signatoryTitle: '' };
+const abs = (u: string) => (/^https?:|^data:|^blob:/.test(u) ? u : new URL(u, window.location.origin).toString());
 
 /** Only learners who have actually been admitted get a letter. */
 export const canPrintAdmissionLetter = (s: Pick<Student, 'admissionStatus'>) => s.admissionStatus === 'admitted' || s.admissionStatus === 'enrolled';
@@ -18,8 +24,32 @@ export const canPrintAdmissionLetter = (s: Pick<Student, 'admissionStatus'>) => 
 export function AdmissionLetterDialog({ student, onClose }: { student: (Student & { id: string }) | null; onClose: () => void }) {
   const school = useSettings('school', DEFAULTS);
   const name = student ? fullName(student) : '';
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  /** A real PDF file: the learner's photo is embedded in it, so it still shows offline. */
+  const download = async () => {
+    if (!student) return;
+    setBusy(true);
+    try {
+      const priv = student.photoRef?.provider === 'supabase';
+      const photoUrl = priv ? await signedUrlFor('students', student.id) : student.photoRef?.url || student.photoUrl || null;
+      const [photo, logo, signature, stamp] = await Promise.all([
+        photoUrl ? loadPdfImage(photoUrl, { aspect: 3 / 4, maxPx: 700 }) : Promise.resolve(undefined),
+        loadPdfImage(abs(BRAND.logo), { transparent: true, maxPx: 300 }),
+        loadPdfImage(abs(school.signatureUrl || BRAND.signature), { transparent: true, maxPx: 500 }),
+        loadPdfImage(abs(school.stampUrl || BRAND.stamp), { transparent: true, maxPx: 500 }),
+      ]);
+      if (photoUrl && !photo) toast.error('The learner photo could not be loaded, so the letter has an empty photo box. Check your connection and try again.');
+      const bytes = await buildAdmissionLetterPdf({
+        schoolName: school.schoolName, address: school.address, studentName: name, firstName: student.firstName, studentNo: student.studentNo,
+        className: student.className, programme: student.programme, guardianAddress: student.address, admittedOn: fmtDate(student.admittedAt || todayISO()),
+        note: school.admissionNote, signatoryName: school.signatoryName, signatoryTitle: school.signatoryTitle,
+      }, { photo, logo, signature, stamp });
+      downloadBytes(`Admission-letter-${student.studentNo.replace(/[^\w-]+/g, '_')}.pdf`, bytes);
+    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
+  };
   return (
-    <Dialog open={!!student} onClose={onClose} size="lg" title="Admission letter" footer={<Button onClick={() => window.print()}><Printer className="h-4 w-4" /> Print / Save PDF</Button>}>
+    <Dialog open={!!student} onClose={onClose} size="lg" title="Admission letter" footer={<><Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print</Button><Button loading={busy} onClick={() => void download()}><Download className="h-4 w-4" /> Download PDF</Button></>}>
       {student && (
         <div className="print-area space-y-5 text-sm leading-relaxed">
           <div className="flex items-center gap-3 border-b-2 border-forest-700 pb-3">

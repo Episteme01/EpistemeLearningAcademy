@@ -23,6 +23,7 @@ import { errorMessage, fmtDate } from '@/lib/utils';
 import { audit } from '@/services/audit';
 import type { ClassRoom, Parent, Staff, Student, UserProfile, WithId } from '@/types/models';
 import { classRef } from './refs';
+import { PurgeButton } from './PurgeButton';
 import { CLASS_LEVELS } from '@/features/public/content';
 
 type SRow = WithId<Student> & Record<string, unknown>;
@@ -168,6 +169,7 @@ export function StudentsPage() {
   const nav = useNavigate();
   const toast = useToast();
   const write = can(role, 'students.write');
+  const canPurge = role === 'super_admin' || role === 'admin';
   const parents = useCollection<Parent>(C.parents, () => [], 'all');
   const classes = useCollection<ClassRoom>(C.classes, () => [], 'all');
   const students = useCollection<Student>(C.students, () => [], 'all');
@@ -182,7 +184,7 @@ export function StudentsPage() {
 
   const config: CrudConfig<SRow> = useMemo(() => ({
     collection: C.students, singular: 'Student', plural: 'Students', description: 'Registration, profiles, class allocation and records.', dialogSize: 'xl', auditActions: true,
-    canCreate: write, canEdit: write, canDelete: can(role, 'students.delete'),
+    canCreate: write, canEdit: write, canDelete: false,
     fields: [
       { name: 'studentNo', label: 'Admission number', type: 'text', required: true, placeholder: 'e.g. ELA/26/0001', hint: 'Typed in by you. Must be different for every learner.' },
       { name: 'firstName', label: 'First name', type: 'text', required: true }, { name: 'lastName', label: 'Surname', type: 'text', required: true }, { name: 'otherNames', label: 'Other names', type: 'text' },
@@ -213,7 +215,7 @@ export function StudentsPage() {
         if (other) throw new Error(`Admission number ${no} already belongs to ${fullName(other)}.`);
       }
       const admittedAt = String(p.admittedAt ?? '').trim() || existing?.admittedAt || new Date().toISOString().slice(0, 10);
-      if (existing) return { ...p, studentNo: no, admittedAt };
+      if (existing) { if (String(existing.admittedAt ?? '') !== admittedAt) void audit('student.admission_date', `students/${existing.id}`, `${String(existing.admittedAt ?? 'none')} -> ${admittedAt}`); return { ...p, studentNo: no, admittedAt }; }
       return { ...p, studentNo: no, studentUid: '', parentUids: [], parentIds: [], admittedAt };
     },
     afterSave: async (id, p, existing) => {
@@ -230,6 +232,7 @@ export function StudentsPage() {
         {write && !r.studentUid && <Button size="icon" variant="ghost" aria-label="Create student login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>}
         {write && r.studentUid && r.username && <Button size="icon" variant="ghost" aria-label="Reset password" onClick={() => setResetFor(r)}><LockKeyhole className="h-4 w-4" /></Button>}
         {canPrintAdmissionLetter(r) && <Button size="icon" variant="ghost" aria-label="Admission letter" onClick={() => setLetterFor(r)}><Printer className="h-4 w-4" /></Button>}
+        {canPurge && <PurgeButton kind="student" id={r.id} />}
       </>
     ),
     headerActions: write ? <Button variant="outline" onClick={() => setPromote(true)}>Promote class</Button> : undefined,
@@ -276,6 +279,7 @@ export function StudentsPage() {
 export function ParentsPage() {
   const { role } = useAuth();
   const write = can(role, 'parents.write');
+  const canPurge = role === 'super_admin' || role === 'admin';
   const toast = useToast();
   const { roles } = useAuth();
   const canLink = roles.includes('super_admin') || roles.includes('admin');
@@ -308,7 +312,7 @@ export function ParentsPage() {
     ],
     searchKeys: ['firstName', 'lastName', 'email', 'phone'], sort: byName,
     beforeSave: (p, e) => (e ? p : { ...p, studentIds: [], userUid: '' }),
-    rowActions: (r) => (write && !r.userUid ? <><Button size="icon" variant="ghost" aria-label="Create parent login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>{canLink && <Button size="icon" variant="ghost" aria-label="Link an existing login" onClick={() => { setLinkAcc(r); setPick(''); }}><UserPlus className="h-4 w-4" /></Button>}</> : null),
+    rowActions: (r) => (<>{canPurge && <PurgeButton kind="parent" id={r.id} />}{write && !r.userUid ? <><Button size="icon" variant="ghost" aria-label="Create parent login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button>{canLink && <Button size="icon" variant="ghost" aria-label="Link an existing login" onClick={() => { setLinkAcc(r); setPick(''); }}><UserPlus className="h-4 w-4" /></Button>}</> : null}</>),
   };
   return (
     <>
@@ -325,6 +329,7 @@ export function ParentsPage() {
 export function StaffPage() {
   const { role } = useAuth();
   const write = can(role, 'staff.write');
+  const canPurge = role === 'super_admin' || role === 'admin';
   const depts = useCollection<{ name: string }>(C.departments, () => [], 'all');
   const [account, setAccount] = useState<(WithId<Staff> & Record<string, unknown>) | null>(null);
   const config: CrudConfig<WithId<Staff> & Record<string, unknown>> = {
@@ -341,7 +346,7 @@ export function StaffPage() {
     ],
     searchKeys: ['firstName', 'lastName', 'staffNo', 'department', 'position'], sort: byName, filters: [{ name: 'status', label: 'Status', options: ['active', 'on_leave', 'resigned', 'inactive'].map((v) => ({ value: v, label: v })) }],
     beforeSave: async (p, e) => (e ? p : { ...p, staffNo: await nextStaffNo(), userUid: '' }),
-    rowActions: (r) => (write && can(role, 'users.manage') && !r.userUid ? <Button size="icon" variant="ghost" aria-label="Create staff login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button> : null),
+    rowActions: (r) => (<>{canPurge && <PurgeButton kind="staff" id={r.id} />}{write && can(role, 'users.manage') && !r.userUid ? <Button size="icon" variant="ghost" aria-label="Create staff login" onClick={() => setAccount(r)}><KeyRound className="h-4 w-4" /></Button> : null}</>),
   };
   return (
     <>

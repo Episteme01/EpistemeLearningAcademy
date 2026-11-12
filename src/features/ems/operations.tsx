@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { where, orderBy, limit } from 'firebase/firestore';
 import { SignatureBlock } from './SignatureBlock';
+import { PurgeButton } from './PurgeButton';
+import { AdvancePaymentDialog, GenerateInvoicesDialog } from './InvoiceTools';
 import { Printer, Receipt as ReceiptIcon, Wallet } from 'lucide-react';
 import { CrudPage, type CrudConfig } from '@/components/common/CrudPage';
 import { DataTable } from '@/components/common/DataTable';
@@ -16,7 +18,7 @@ import { BRAND } from '@/config/brand';
 import { assignableRoles, can, rolesOf, ROLE_LABELS, ALL_ROLES, type Role } from '@/config/permissions';
 import { useSettings } from '@/hooks/useSettings';
 import { batchSet, patchDoc } from '@/services/db';
-import { generateInvoices, fullName, recordPayment } from '@/services/ems';
+import { fullName, recordPayment } from '@/services/ems';
 import { createAccount, randomPassword } from '@/services/accounts';
 import { audit } from '@/services/audit';
 import { downloadText, errorMessage, fmtDate, fmtMoney, todayISO, toDate } from '@/lib/utils';
@@ -143,28 +145,14 @@ export function InvoicesPage() {
   const toast = useToast();
   const w = can(role, 'finance.write');
   const school = useSchool();
-  const structures = useCollection<FeeStructure>(C.feeStructures, () => [], 'all');
-  const terms = useCollection<Term>(C.terms, () => [], 'all');
-  const classes = useCollection<ClassRoom>(C.classes, () => [], 'all');
   const payments = useCollection<Payment>(C.payments, () => [], 'all');
   const [gen, setGen] = useState(false);
-  const [g, setG] = useState({ structureId: '', termId: '', classId: '', due: todayISO() });
+  const [adv, setAdv] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pay, setPay] = useState<(WithId<Invoice> & Record<string, unknown>) | null>(null);
   const [p, setP] = useState({ amount: '', method: 'cash' as Payment['method'], reference: '', paidAt: todayISO() });
   const [receipt, setReceipt] = useState<WithId<Payment> | null>(null);
 
-  const doGenerate = async () => {
-    const st = structures.data.find((x) => x.id === g.structureId); const term = terms.data.find((x) => x.id === g.termId);
-    if (!st || !term || !g.classId) return toast.error('Choose a fee structure, term and class.');
-    setBusy(true);
-    try {
-      const { listDocs } = await import('@/services/db');
-      const studs = (await listDocs<Student>(C.students, [where('classId', '==', g.classId)])).filter((s) => s.status === 'active');
-      const n = await generateInvoices({ structure: st, students: studs, termId: term.id, termName: `${term.sessionName ?? ''} ${term.name}`.trim(), dueDate: g.due });
-      toast.success(`${n} invoice(s) created${n < studs.length ? ` (${studs.length - n} already existed)` : ''}`); setGen(false);
-    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
-  };
   const doPay = async () => {
     if (!pay) return;
     setBusy(true);
@@ -182,24 +170,19 @@ export function InvoicesPage() {
     searchKeys: ['invoiceNo', 'studentName', 'termName'], sort: (a, b) => (toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0),
     filters: [{ name: 'status', label: 'Status', options: ['unpaid', 'partial', 'paid', 'overdue', 'cancelled'].map((v) => ({ value: v, label: v })) }],
     exportColumns: [{ header: 'Invoice', value: (r) => r.invoiceNo }, { header: 'Student', value: (r) => r.studentName }, { header: 'Total', value: (r) => r.total }, { header: 'Paid', value: (r) => r.paid }, { header: 'Balance', value: (r) => r.balance }, { header: 'Status', value: (r) => r.status }],
-    headerActions: w ? <Button variant="gold" onClick={() => setGen(true)}>Generate invoices</Button> : undefined,
+    headerActions: w ? <><Button variant="outline" onClick={() => setAdv(true)}>Previous / advance payment</Button><Button variant="gold" onClick={() => setGen(true)}>Generate invoices</Button></> : undefined,
     rowActions: (r) => (<>
       {w && r.balance > 0 && r.status !== 'cancelled' && <Button size="sm" variant="outline" onClick={() => { setPay(r); setP({ amount: String(r.balance), method: 'cash', reference: '', paidAt: todayISO() }); }}><Wallet className="h-4 w-4" /> Pay</Button>}
       {payments.data.filter((x) => x.invoiceId === r.id).slice(-1).map((x) => <Button key={x.id} size="icon" variant="ghost" aria-label="Latest receipt" onClick={() => setReceipt(x)}><ReceiptIcon className="h-4 w-4" /></Button>)}
+      {(role === 'super_admin' || role === 'admin' || role === 'finance') && <PurgeButton kind="invoice" id={r.id} />}
       {w && r.status !== 'paid' && r.status !== 'cancelled' && r.paid === 0 && <Button size="sm" variant="ghost" onClick={() => { void patchDoc(C.invoices, r.id, { status: 'cancelled' }).then(() => audit('invoice.cancel', `invoices/${r.id}`)); }}>Cancel</Button>}
     </>),
   };
   return (
     <>
       <CrudPage config={config} />
-      <Dialog open={gen} onClose={() => setGen(false)} title="Generate invoices" description="Creates one invoice per active student in the class (existing ones are skipped)." size="sm" footer={<><Button variant="outline" onClick={() => setGen(false)}>Cancel</Button><Button loading={busy} onClick={() => void doGenerate()}>Generate</Button></>}>
-        <div className="space-y-4">
-          <Field label="Fee structure">{(a) => <Select {...a} value={g.structureId} onChange={(e) => setG({ ...g, structureId: e.target.value })}><option value="">Select…</option>{structures.data.map((s) => <option key={s.id} value={s.id}>{s.name} — {fmtMoney(s.total, s.currency)}</option>)}</Select>}</Field>
-          <Field label="Term">{(a) => <Select {...a} value={g.termId} onChange={(e) => setG({ ...g, termId: e.target.value })}><option value="">Select…</option>{terms.data.map((t) => <option key={t.id} value={t.id}>{t.sessionName} {t.name}</option>)}</Select>}</Field>
-          <Field label="Class">{(a) => <Select {...a} value={g.classId} onChange={(e) => setG({ ...g, classId: e.target.value })}><option value="">Select…</option>{classes.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>}</Field>
-          <Field label="Due date">{(a) => <Input {...a} type="date" value={g.due} onChange={(e) => setG({ ...g, due: e.target.value })} />}</Field>
-        </div>
-      </Dialog>
+      <GenerateInvoicesDialog open={gen} onClose={() => setGen(false)} />
+      <AdvancePaymentDialog open={adv} onClose={() => setAdv(false)} />
       <Dialog open={!!pay} onClose={() => setPay(null)} title="Record payment" description={pay ? `${pay.invoiceNo} · balance ${fmtMoney(pay.balance, pay.currency)}` : ''} size="sm" footer={<><Button variant="outline" onClick={() => setPay(null)}>Cancel</Button><Button loading={busy} onClick={() => void doPay()}>Record payment</Button></>}>
         <div className="space-y-4">
           <Field label="Amount" required>{(a) => <Input {...a} type="number" min="0" step="0.01" value={p.amount} onChange={(e) => setP({ ...p, amount: e.target.value })} />}</Field>
