@@ -30,6 +30,9 @@ import { ReportsPage } from '@/features/reports/ReportsPage';
 import { NoticesPage } from '@/features/notices/NoticesPage';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
 import { IslamicPage } from '@/features/Islamic/IslamicPage';
+import { CommunityPage } from '@/features/Islamic/content';
+import { PlayerProvider } from '@/features/Islamic/player';
+import { AlarmEngine } from '@/features/Islamic/alarms';
 import { StorageInventory } from '@/features/media/StorageInventory';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
@@ -43,9 +46,10 @@ function guard(path: string, el: ReactNode, extra?: Role[]) {
 export function App() {
   if (!firebaseConfigured) return <SetupScreen />;
   return (
-    <>
+    <PlayerProvider>
     <UpdateBanner />
     <PaymentReturn />
+    <AlarmEngine />
     <Routes>
       <Route element={<PublicLayout />}>
         <Route index element={<P.HomePage />} />
@@ -56,6 +60,7 @@ export function App() {
         <Route path="blog" element={<P.BlogPage />} />
         <Route path="blog/:slug" element={<P.BlogPostPage />} />
         <Route path="islamic" element={<IslamicPage />} />
+        <Route path="community" element={<CommunityPage />} />
         <Route path="contact" element={<P.ContactPage />} />
         <Route path="faq" element={<P.FaqPage />} />
         <Route path="search" element={<P.SearchPage />} />
@@ -142,6 +147,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Route>
     </Routes>
-    </>
+    </PlayerProvider>
   );
 }

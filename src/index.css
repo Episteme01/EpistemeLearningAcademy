@@ -87,3 +87,11 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Islamic portal: tajweed colouring (classes come from Quran.com's tajweed markup) */
+.tj-ham_wasl,.tj-slnt,.tj-laam_shamsiyah{color:#8a8a8a}
+.tj-madda_normal{color:#c2410c}.tj-madda_permissible{color:#d97706}.tj-madda_necessary,.tj-madda_obligatory{color:#b91c1c}
+.tj-qalaqah{color:#1d4ed8}.tj-ikhfa_shafawi,.tj-ikhfa{color:#be185d}.tj-idgham_shafawi,.tj-iqlab{color:#0f766e}
+.tj-idgham_ghunnah,.tj-idgham_wo_ghunnah,.tj-idgham_mutajanisayn,.tj-idgham_mutaqaribayn{color:#15803d}.tj-ghunnah{color:#ea580c}
+.tj-end{color:#c8a45a}
+.arabic-indopak{font-family:"Noto Naskh Arabic","Scheherazade New","Amiri",serif}
