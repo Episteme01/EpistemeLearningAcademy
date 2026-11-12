@@ -24,7 +24,7 @@ import { audit } from '@/services/audit';
 import { downloadText, errorMessage, fmtDate, fmtMoney, todayISO, toDate } from '@/lib/utils';
 import { toCsv } from '@/lib/csv';
 import { invoiceTotal } from '@/lib/finance';
-import type { AttendanceRecord, AttendanceStatus, ClassRoom, FeeStructure, Invoice, Payment, Student, Term, UserProfile, WithId } from '@/types/models';
+import type { AttendanceRecord, AttendanceStatus, ClassRoom, Invoice, Payment, Student, UserProfile, WithId } from '@/types/models';
 import { classRef } from './refs';
 import { LinkedPeopleDialog } from './people';
 
