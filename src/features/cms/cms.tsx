@@ -164,14 +164,21 @@ export function CmsAnnouncements() {
 }
 
 export function CmsIslamic() {
+  const T = (v: string, l: string) => ({ value: v, label: l });
   return <CrudPage config={{
-    collection: C.islamicContent, singular: 'Islamic item', plural: 'Islamic content', description: 'Tajweed lessons, extra hadith and adhkar shown on the public /islamic page. Always give a source for hadith and adhkar.', auditActions: true,
+    collection: C.islamicContent, singular: 'Islamic item', plural: 'Islamic content', description: 'Everything on the public /islamic page and /community page that is not fetched live: khutbahs, videos, news, pictures, social posts, Tajweed lessons, extra hadith and adhkar. Always give a source for religious text.', auditActions: true,
     fields: [
-      { name: 'type', label: 'Section', type: 'select', required: true, defaultValue: 'tajweed', options: [{ value: 'tajweed', label: 'Tajweed lesson' }, { value: 'hadith', label: 'Hadith' }, { value: 'adhkar', label: 'Adhkar / dua' }] },
-      { name: 'title', label: 'Title', type: 'text', required: true },
-      { name: 'arabic', label: 'Arabic text (optional)', type: 'textarea' },
-      { name: 'body', label: 'English text / lesson', type: 'textarea', required: true },
-      { name: 'source', label: 'Source (collection, number, grading)', type: 'text' },
+      { name: 'type', label: 'Section', type: 'select', required: true, defaultValue: 'news', options: [T('news', 'Islamic news / update'), T('khutbah', 'Friday khutbah'), T('video', 'Video (admonition, lecture)'), T('gallery', 'Picture (dashboard slider)'), T('social', 'Social media post (/community)'), T('tajweed', 'Tajweed lesson'), T('hadith', 'Hadith'), T('adhkar', 'Adhkar / dua')] },
+      { name: 'title', label: 'Title / caption', type: 'text', required: true },
+      { name: 'itemDate', label: 'Date (khutbah date, news date)', type: 'date' },
+      { name: 'arabic', label: 'Arabic text (khutbah, hadith, dua)', type: 'textarea' },
+      { name: 'body', label: 'English text / translation / summary', type: 'textarea' },
+      { name: 'source', label: 'Source (author, collection, outlet, grading)', type: 'text' },
+      { name: 'imageUrl', label: 'Picture (gallery, social posts)', type: 'image' },
+      { name: 'videoUrl', label: 'YouTube link (videos, khutbah video, social)', type: 'url', hint: 'Paste the normal YouTube address. It is embedded on the page.' },
+      { name: 'audioUrl', label: 'Audio file link (khutbah audio, .mp3)', type: 'url', hint: 'A direct link to an audio file (for example an uploaded Cloudinary or Supabase public link).' },
+      { name: 'link', label: 'Link to original (news report, social post)', type: 'url' },
+      { name: 'platform', label: 'Platform (social posts)', type: 'select', options: [T('youtube', 'YouTube'), T('facebook', 'Facebook'), T('instagram', 'Instagram'), T('x', 'X'), T('tiktok', 'TikTok'), T('other', 'Other')] },
       { name: 'status', label: 'Status', type: 'select', required: true, defaultValue: 'draft', options: [{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }] },
     ],
     columns: [{ key: 't', header: 'Title', primary: true, cell: (r: Row & { title: string }) => <span className="font-medium">{r.title}</span> }, { key: 'ty', header: 'Section', cell: (r: Row & { type?: string }) => r.type }, { key: 's', header: 'Status', cell: (r: Row & { status: string }) => <StatusBadge status={r.status} /> }],
