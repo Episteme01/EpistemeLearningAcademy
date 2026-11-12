@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Check, Copy, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SITE_URL } from '@/config/env';
 import { shareLinks } from './lib';
 
 /** Share to any app through the phone's share sheet, or pick a platform / copy the text. */
 export function ShareButton({ text, path, className, label = 'Share' }: { text: string; path?: string; className?: string; label?: string }) {
   const [open, setOpen] = useState(false); const [copied, setCopied] = useState(false);
-  const url = path ? (/^https?:/.test(path) ? path : `${SITE_URL}${path}`) : `${SITE_URL}/islamic`;
+  // always the address this visitor is on, so the link works wherever the site is hosted
+  const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '');
+  const url = path ? (/^https?:/.test(path) ? path : `${base}${path}`) : `${base}/islamic`;
   const full = `${text}\n\n${url}`;
   const onClick = async () => {
     if (typeof navigator.share === 'function') { try { await navigator.share({ text, url }); return; } catch (e) { if ((e as Error).name === 'AbortError') return; } }
