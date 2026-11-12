@@ -29,7 +29,7 @@ import { PaymentReturn } from '@/features/pay/PaymentReturn';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { NoticesPage } from '@/features/notices/NoticesPage';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
-import { IslamicPage } from '@/features/islamic/IslamicPage';
+import { IslamicPage } from '@/features/Islamic/IslamicPage';
 import { StorageInventory } from '@/features/media/StorageInventory';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
