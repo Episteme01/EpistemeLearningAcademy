@@ -30,7 +30,8 @@ import { ReportsPage } from '@/features/reports/ReportsPage';
 import { NoticesPage } from '@/features/notices/NoticesPage';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
 import { IslamicPage } from '@/features/Islamic/IslamicPage';
-import { CommunityPage } from '@/features/Islamic/content';
+import { CurriculumDetail, CurriculumList } from '@/features/curriculum/Curriculum';
+import { SpotlightPage } from '@/features/spotlight/Spotlight';
 import { PlayerProvider } from '@/features/Islamic/player';
 import { AlarmEngine } from '@/features/Islamic/alarms';
 import { StorageInventory } from '@/features/media/StorageInventory';
@@ -60,7 +61,8 @@ export function App() {
         <Route path="blog" element={<P.BlogPage />} />
         <Route path="blog/:slug" element={<P.BlogPostPage />} />
         <Route path="islamic" element={<IslamicPage />} />
-        <Route path="community" element={<CommunityPage />} />
+        <Route path="spotlight" element={<SpotlightPage />} />
+        <Route path="community" element={<SpotlightPage />} />
         <Route path="contact" element={<P.ContactPage />} />
         <Route path="faq" element={<P.FaqPage />} />
         <Route path="search" element={<P.SearchPage />} />
@@ -79,6 +81,9 @@ export function App() {
         <Route path="cms/posts" element={guard('/app/cms/posts', <Cms.CmsPosts />)} />
         <Route path="cms/programmes" element={guard('/app/cms/programmes', <Cms.CmsProgrammes />)} />
         <Route path="cms/categories" element={guard('/app/cms/categories', <Cms.CmsCategories />)} />
+        <Route path="lms/curriculum" element={guard('/app/lms/curriculum', <CurriculumList />)} />
+        <Route path="lms/curriculum/:id" element={guard('/app/lms/curriculum', <CurriculumDetail />)} />
+        <Route path="cms/spotlight" element={guard('/app/cms/spotlight', <Cms.CmsSpotlight />)} />
         <Route path="cms/islamic" element={guard('/app/cms/islamic', <Cms.CmsIslamic />)} />
         <Route path="cms/announcements" element={guard('/app/cms/announcements', <Cms.CmsAnnouncements />)} />
         <Route path="cms/homepage" element={guard('/app/cms/homepage', <Cms.CmsHomepage />)} />
