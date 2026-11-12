@@ -15,6 +15,7 @@ import { EmptyState, Spinner } from '@/components/ui/data';
 import { useSettings } from '@/hooks/useSettings';
 import { useCollection } from '@/hooks/useFirestore';
 import { useSeo } from '@/hooks/useSeo';
+import { ShareButton } from '@/features/Islamic/share';
 import { subscribeDoc, getById } from '@/services/db';
 import { sanitizeHtml, stripHtml } from '@/lib/sanitize';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
@@ -225,6 +226,7 @@ export function BlogPostPage() {
     <article>
       <PageHero title={post.title} lead={post.excerpt} image={post.image} />
       <div className="mx-auto max-w-3xl px-4 py-12 md:px-6"><p className="mb-6 text-sm text-muted">{fmtDate(post.publishedAt)} {post.category ? `· ${post.category}` : ''}</p><Rich html={post.body} />
+        <div className="mt-8 flex items-center gap-3 border-t border-line pt-4"><span className="text-sm text-muted">Share this article</span><ShareButton text={post.title} path={`/blog/${post.slug || post.id}`} /></div>
         <Link to="/blog" className="mt-10 inline-block font-medium text-forest-500 underline underline-offset-4">← All articles</Link></div>
     </article>
   );

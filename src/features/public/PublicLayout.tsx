@@ -89,7 +89,7 @@ export function PublicLayout() {
             <div className="mt-4 flex gap-3">{social.map((s) => <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" aria-label={s.label}><img src={s.icon} alt="" className="h-7 w-7 rounded" /></a>)}</div>
           </div>
           <div><p className="font-heading text-sm font-semibold text-gold-300">Explore</p>
-            <ul className="mt-3 space-y-2 text-sm">{[['About', '/about'], ['Programmes', '/programmes'], ['Admissions', '/admissions'], ['FAQ', '/faq'], ['Blog & news', '/blog'], ['Islamic portal', '/islamic']].map(([l, t]) => <li key={t}><Link className="hover:text-white" to={t as string}>{l}</Link></li>)}</ul></div>
+            <ul className="mt-3 space-y-2 text-sm">{[['About', '/about'], ['Programmes', '/programmes'], ['Admissions', '/admissions'], ['FAQ', '/faq'], ['Blog & news', '/blog'], ['Islamic portal', '/islamic'], ['Social media', '/community']].map(([l, t]) => <li key={t}><Link className="hover:text-white" to={t as string}>{l}</Link></li>)}</ul></div>
           <div><p className="font-heading text-sm font-semibold text-gold-300">Contact</p>
             <ul className="mt-3 space-y-2 text-sm"><li>{site.address}</li><li><a className="hover:text-white" href={`mailto:${site.email}`}>{site.email}</a></li>
               {site.phones.map((p) => <li key={p}><a className="hover:text-white" href={`tel:${p}`}>{p}</a></li>)}
