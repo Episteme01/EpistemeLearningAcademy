@@ -112,3 +112,83 @@ export const TAJWEED: Array<{ level: string; lessons: Array<{ title: string; bod
     { title: 'Lam and ra', body: 'The lam in the name Allah is heavy after fathah or dammah and light after kasrah. The ra is heavy or light depending on its vowel and the letters around it.' },
   ] },
 ];
+
+/* ------------------------------------------------------------------ v2 additions */
+/** Extract a YouTube video id from watch, youtu.be, shorts or embed links. */
+export function youtubeId(url: string): string | null {
+  const m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(url || '');
+  return m ? m[1] : null;
+}
+/** A different verse for each calendar day (1–6236), repeatable for the same date. */
+export function ayahOfDay(d: Date): number {
+  return (((dayOfYear(d) - 1) + (d.getUTCFullYear() - 2000) * 366) % 6236) + 1;
+}
+/**
+ * Quran.com tajweed text contains <tajweed class=…>…</tajweed> markup. Keep only that
+ * tag (class limited to [a-z_]) and the end-of-ayah span; escape everything else.
+ */
+export function sanitizeTajweed(html: string): string {
+  const esc = (s: string) => s.replace(/&(?!(?:amp|lt|gt|quot|#\d+);)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let out = '';
+  let last = 0;
+  const re = /<\/?(tajweed|span)\b([^>]*)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    out += esc(html.slice(last, m.index));
+    last = m.index + m[0].length;
+    const closing = m[0][1] === '/';
+    const tag = m[1].toLowerCase();
+    if (closing) { out += `</${tag === 'tajweed' ? 'span' : 'span'}>`; continue; }
+    const cls = /class\s*=\s*"?([a-z_ ]+)"?/i.exec(m[2])?.[1]?.trim().replace(/\s+/g, ' ') ?? '';
+    out += `<span class="${tag === 'tajweed' ? 'tj-' + cls.split(' ')[0] : 'tj-end'}">`;
+  }
+  return out + esc(html.slice(last));
+}
+
+export function shareLinks(url: string, text: string) {
+  const u = encodeURIComponent(url), t = encodeURIComponent(text);
+  return [
+    { id: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/?text=${t}%20${u}` },
+    { id: 'telegram', label: 'Telegram', href: `https://t.me/share/url?url=${u}&text=${t}` },
+    { id: 'facebook', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${u}` },
+    { id: 'x', label: 'X', href: `https://twitter.com/intent/tweet?text=${t}&url=${u}` },
+    { id: 'email', label: 'Email', href: `mailto:?subject=${t}&body=${u}` },
+  ];
+}
+
+/* ---- alarms ---- */
+export interface AlarmSettings {
+  prayers: Record<PrayerName, { on: boolean; before: number }>;
+  quran: { on: boolean; time: string };
+  hadith: { on: boolean; time: string };
+  dua: { on: boolean; time: string };
+  blog: { on: boolean };
+  sound: boolean;
+}
+export const DEFAULT_ALARMS: AlarmSettings = {
+  prayers: { Fajr: { on: false, before: 0 }, Dhuhr: { on: false, before: 0 }, Asr: { on: false, before: 0 }, Maghrib: { on: false, before: 0 }, Isha: { on: false, before: 0 } },
+  quran: { on: false, time: '05:30' }, hadith: { on: false, time: '07:00' }, dua: { on: false, time: '06:00' }, blog: { on: false }, sound: true,
+};
+export interface DueAlarm { id: string; title: string; body: string; url: string }
+/**
+ * Alarms due right now. An alarm is due from its minute until 2 minutes after (so a throttled
+ * background tab still catches it); `fired` holds ids already shown for this dateKey.
+ */
+export function dueAlarms(s: AlarmSettings, timings: Record<string, string> | null, nowMin: number, dateKey: string, fired: string[]): DueAlarm[] {
+  const out: DueAlarm[] = [];
+  const hit = (target: number | null) => target !== null && nowMin >= target && nowMin <= target + 2;
+  const add = (id: string, title: string, body: string, url: string) => { const k = `${dateKey}:${id}`; if (!fired.includes(k)) out.push({ id: k, title, body, url }); };
+  if (timings) for (const p of PRAYERS) {
+    const c = s.prayers[p]; if (!c?.on) continue;
+    const at = toMinutes(timings[p]); if (at === null) continue;
+    if (hit(at - Math.max(0, c.before))) add(`prayer-${p}`, c.before ? `${p} in ${c.before} minutes` : `Time for ${p}`, `${p} prayer ${c.before ? 'starts at ' + timings[p].slice(0, 5) : 'has begun'}.`, '/islamic?tab=prayer');
+  }
+  if (s.quran.on && hit(toMinutes(s.quran.time))) add('quran', 'Time to recite Qur’an', 'Open the Islamic portal to read or listen.', '/islamic?tab=quran');
+  if (s.hadith.on && hit(toMinutes(s.hadith.time))) add('hadith', 'Hadith of the day', 'Today’s hadith is ready.', '/islamic?tab=hadith');
+  if (s.dua.on && hit(toMinutes(s.dua.time))) add('dua', 'Daily dua and adhkar', 'Take a moment for your remembrance.', '/islamic?tab=adhkar');
+  return out;
+}
+/** Posts published after `lastSeenMs` (oldest-first not needed). */
+export function newPosts<T extends { publishedMs: number }>(posts: T[], lastSeenMs: number): T[] {
+  return posts.filter((p) => p.publishedMs > lastSeenMs);
+}

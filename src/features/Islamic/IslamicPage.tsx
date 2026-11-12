@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { Bookmark, BookmarkCheck, ChevronLeft, ChevronRight, Pause, Play, Repeat, RotateCcw, Search, SkipBack, SkipForward, Volume2 } from 'lucide-react';
-import { db } from '@/config/firebase';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Play, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSearchParams } from 'react-router-dom';
 import * as api from './api';
-import { ADHKAR, ADHKAR_GROUPS, audioUrl, dailyIndex, fmtCountdown, hijriOf, minutesInZone, nextPrayer, PRAYERS, surahsAvailable, TAJWEED, type Adhkar, type Reciter } from './lib';
+import { useCmsType } from './cms';
+import { Dashboard, Khutbah, Videos } from './content';
+import { Quran } from './reader';
+import { AlarmsTab } from './alarms';
+import { usePlayer } from './player';
+import { ShareButton } from './share';
+import { ADHKAR, ADHKAR_GROUPS, dailyIndex, fmtCountdown, hijriOf, minutesInZone, nextPrayer, PRAYERS, surahsAvailable, TAJWEED, type Adhkar, type Reciter } from './lib';
 
-const TABS = [['quran', 'Qur’an'], ['listen', 'Listen'], ['prayer', 'Prayer times'], ['hadith', 'Hadith'], ['adhkar', 'Adhkar'], ['tajweed', 'Tajweed'], ['calendar', 'Calendar']] as const;
+const TABS = [['home', 'Home'], ['quran', 'Qur’an'], ['listen', 'Listen'], ['khutbah', 'Khutbah'], ['videos', 'Videos'], ['prayer', 'Prayer times'], ['hadith', 'Hadith'], ['adhkar', 'Adhkar'], ['tajweed', 'Tajweed'], ['calendar', 'Calendar'], ['alarms', 'Reminders']] as const;
 type Tab = (typeof TABS)[number][0];
 
-const cardRow = 'rounded-xl border border-line bg-white p-4 shadow-sm flex flex-col gap-3';
 const card = 'rounded-xl border border-line bg-white p-4 shadow-sm';
 const btn = 'inline-flex items-center justify-center gap-1.5 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-forest-700 hover:bg-forest-50 disabled:opacity-40';
 const sel = 'w-full rounded-md border border-line bg-white px-3 py-2 text-sm';
@@ -31,127 +35,33 @@ function store<T>(key: string, init: T): [T, (v: T) => void] {
 }
 const Attribution = ({ children }: { children: React.ReactNode }) => <p className="mt-4 text-xs text-ink/55">{children}</p>;
 
-/* ------------------------------------------------------------------ Qur'an */
-function Quran() {
-  const surahs = useAsync(api.listSurahs, []);
-  const [mode, setMode] = useState<'surah' | 'juz'>('surah');
-  const [n, setN] = useState(1);
-  const [q, setQ] = useState('');
-  const [found, setFound] = useState<Awaited<ReturnType<typeof api.searchEnglish>> | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [marks, setMarks] = store<string[]>('ela.islamic.bookmarks', []);
-  const passage = useAsync(() => (mode === 'surah' ? api.surahText(n) : api.juzText(n)), [mode, n]);
-  const max = mode === 'surah' ? 114 : 30;
-  const info = surahs.data?.find((s) => s.number === n);
-  const toggle = (key: string) => setMarks(marks.includes(key) ? marks.filter((m) => m !== key) : [...marks, key]);
-  const doSearch = async () => { if (q.trim().length < 3) return; setSearching(true); try { setFound(await api.searchEnglish(q.trim())); } catch { setFound([]); } setSearching(false); };
-  return (
-    <div className="space-y-4">
-      <div className={cardRow}>
-        <div className="flex gap-2">
-          {(['surah', 'juz'] as const).map((m) => <button key={m} onClick={() => { setMode(m); setN(1); }} className={cn(btn, mode === m && 'bg-forest-700 text-white hover:bg-forest-700')}>{m === 'surah' ? 'By surah' : 'By juz’'}</button>)}
-        </div>
-        <div className="flex items-center gap-2">
-          <button className={btn} aria-label="Previous" disabled={n <= 1} onClick={() => setN(n - 1)}><ChevronLeft className="h-4 w-4" /></button>
-          <select aria-label={mode === 'surah' ? 'Choose surah' : 'Choose juz'} className={sel} value={n} onChange={(e) => setN(+e.target.value)}>
-            {Array.from({ length: max }, (_, i) => i + 1).map((i) => <option key={i} value={i}>{mode === 'surah' ? `${i}. ${surahs.data?.[i - 1]?.englishName ?? 'Surah ' + i}` : `Juz’ ${i}`}</option>)}
-          </select>
-          <button className={btn} aria-label="Next" disabled={n >= max} onClick={() => setN(n + 1)}><ChevronRight className="h-4 w-4" /></button>
-        </div>
-      </div>
-      <div className={card}>
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void doSearch(); }}>
-          <input className={sel} placeholder="Search the English translation (3+ letters)" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className={btn} type="submit" aria-label="Search"><Search className="h-4 w-4" /></button>
-        </form>
-        {searching && <p className="mt-2 text-sm text-ink/60">Searching…</p>}
-        {found && !searching && (
-          <div className="mt-3 max-h-72 space-y-2 overflow-auto text-sm">
-            {found.length === 0 ? <p className="text-ink/60">No matches.</p> : found.slice(0, 50).map((a) => <button key={a.number} className="block w-full rounded-md border border-line p-2 text-left hover:bg-forest-50" onClick={() => { setMode('surah'); setN(a.surah!.number); setFound(null); }}><b>{a.surah!.englishName} {a.surah!.number}:{a.numberInSurah}</b> — {a.text}</button>)}
-            {found.length > 50 && <p className="text-xs text-ink/55">Showing the first 50 of {found.length}.</p>}
-          </div>
-        )}
-      </div>
-      {mode === 'surah' && info && <h2 className="text-center font-heading text-xl text-forest-700">{info.englishName} <span className="font-normal text-ink/60">· {info.englishNameTranslation} · {info.numberOfAyahs} ayat · {info.revelationType}</span></h2>}
-      <Status s={passage} what="the text" />
-      {passage.data && (
-        <ol className="space-y-3">
-          {passage.data.arabic.map((a, i) => {
-            const sn = a.surah?.number ?? n; const key = `${sn}:${a.numberInSurah}`; const marked = marks.includes(key);
-            return (
-              <li key={a.number} className={card}>
-                <div className="flex items-start justify-between gap-3">
-                  <span className="rounded-full bg-forest-50 px-2 py-0.5 text-xs text-forest-700">{key}</span>
-                  <button aria-label={marked ? 'Remove bookmark' : 'Bookmark'} onClick={() => toggle(key)} className="text-gold-500">{marked ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}</button>
-                </div>
-                <p dir="rtl" lang="ar" className="mt-2 font-serif text-2xl leading-[2.2] text-ink">{a.text}</p>
-                <p className="mt-2 text-sm text-ink/75">{passage.data!.english[i]?.text}</p>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      {marks.length > 0 && <div className={card}><b className="text-sm">Your bookmarks</b> <span className="text-xs text-ink/55">(saved on this device)</span><div className="mt-2 flex flex-wrap gap-2">{marks.map((m) => <button key={m} className={btn} onClick={() => { setMode('surah'); setN(+m.split(':')[0]); }}>{m}</button>)}</div></div>}
-      <Attribution>Arabic text (Uthmani) and English translation (Saheeh International) are provided live by <a className="underline" href="https://alquran.cloud">AlQuran Cloud</a>. Verses are shown exactly as the provider supplies them.</Attribution>
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ Listen */
-function Listen() {
+function Listen({ initialSurah }: { initialSurah: number }) {
+  const player = usePlayer();
   const reciters = useAsync(api.listReciters, []);
   const surahs = useAsync(api.listSurahs, []);
-  const [rid, setRid] = useState<number | null>(null);
+  const [rid, setRid] = store<number | null>('ela.islamic.reciter', null);
   const [mid, setMid] = useState<number | null>(null);
-  const [surah, setSurah] = useState(1);
-  const [repeat, setRepeat] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [pos, setPos] = useState(0); const [dur, setDur] = useState(0); const [vol, setVol] = useState(1);
-  const [err, setErr] = useState('');
-  const au = useRef<HTMLAudioElement>(null);
+  const [surah, setSurah] = useState(initialSurah);
   const [filter, setFilter] = useState('');
   const list = useMemo(() => (reciters.data ?? []).filter((r) => r.name.toLowerCase().includes(filter.toLowerCase())), [reciters.data, filter]);
   const reciter: Reciter | undefined = reciters.data?.find((r) => r.id === rid) ?? reciters.data?.[0];
   const moshaf = reciter?.moshaf.find((m) => m.id === mid) ?? reciter?.moshaf[0];
   const avail = moshaf ? surahsAvailable(moshaf) : [];
   const cur = avail.includes(surah) ? surah : avail[0];
-  const src = moshaf && cur ? audioUrl(moshaf, cur) : '';
-  useEffect(() => { setErr(''); setPos(0); setDur(0); if (au.current && src && playing) void au.current.play().catch(() => setPlaying(false)); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [src]);
-  const step = useCallback((d: number) => { const i = avail.indexOf(cur!); const nx = avail[i + d]; if (nx) setSurah(nx); }, [avail, cur]);
-  const toggle = () => { const a = au.current; if (!a || !src) return; if (a.paused) { void a.play().then(() => setPlaying(true)).catch(() => setErr('This recording could not be played.')); } else { a.pause(); setPlaying(false); } };
-  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   return (
     <div className="space-y-4">
       <Status s={reciters} what="the reciters" />
       {reciters.data && (
-        <>
-          <div className={card}>
-            <p className="text-sm text-ink/70"><b>{reciters.data.length}</b> reciters available{reciters.data.length < 50 ? ' (the provider currently lists fewer than 50)' : ''}.</p>
-            <input className={cn(sel, 'mt-2')} placeholder="Search reciters" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <select aria-label="Reciter" className={cn(sel, 'mt-2')} value={reciter?.id} onChange={(e) => { setRid(+e.target.value); setMid(null); }}>
-              {list.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            {reciter && reciter.moshaf.length > 1 && <select aria-label="Recitation" className={cn(sel, 'mt-2')} value={moshaf?.id} onChange={(e) => setMid(+e.target.value)}>{reciter.moshaf.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>}
-            <select aria-label="Surah" className={cn(sel, 'mt-2')} value={cur} onChange={(e) => setSurah(+e.target.value)}>{avail.map((i) => <option key={i} value={i}>{i}. {surahs.data?.[i - 1]?.englishName ?? `Surah ${i}`}</option>)}</select>
-          </div>
-          <div className={card}>
-            <audio ref={au} src={src || undefined} preload="none" loop={repeat}
-              onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
-              onTimeUpdate={(e) => setPos(e.currentTarget.currentTime)} onLoadedMetadata={(e) => setDur(e.currentTarget.duration)}
-              onEnded={() => { if (!repeat) step(1); }} onError={() => { setPlaying(false); setErr('This recording is unavailable right now. Try another surah or reciter.'); }} />
-            <p className="text-center font-medium text-forest-700">{surahs.data?.[(cur ?? 1) - 1]?.englishName} — {reciter?.name}</p>
-            <input aria-label="Seek" type="range" className="mt-3 w-full" min={0} max={dur || 0} step={1} value={Math.min(pos, dur || 0)} onChange={(e) => { if (au.current) au.current.currentTime = +e.target.value; }} />
-            <div className="flex justify-between text-xs text-ink/60"><span>{mmss(pos)}</span><span>{dur ? mmss(dur) : '--:--'}</span></div>
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <button className={btn} aria-label="Previous surah" onClick={() => step(-1)} disabled={avail.indexOf(cur!) <= 0}><SkipBack className="h-4 w-4" /></button>
-              <button className={cn(btn, 'bg-forest-700 px-5 text-white hover:bg-forest-700')} aria-label={playing ? 'Pause' : 'Play'} onClick={toggle}>{playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}</button>
-              <button className={btn} aria-label="Next surah" onClick={() => step(1)} disabled={avail.indexOf(cur!) >= avail.length - 1}><SkipForward className="h-4 w-4" /></button>
-              <button className={cn(btn, repeat && 'bg-gold-100')} aria-pressed={repeat} aria-label="Repeat" onClick={() => setRepeat(!repeat)}><Repeat className="h-4 w-4" /></button>
-            </div>
-            <label className="mt-3 flex items-center gap-2 text-xs text-ink/60"><Volume2 className="h-4 w-4" /><input aria-label="Volume" type="range" min={0} max={1} step={0.05} value={vol} onChange={(e) => { setVol(+e.target.value); if (au.current) au.current.volume = +e.target.value; }} className="w-full" /></label>
-            {err && <p role="alert" className="mt-2 text-center text-sm text-red-700">{err}</p>}
-          </div>
-        </>
+        <div className={card}>
+          <p className="text-sm text-ink/70"><b>{reciters.data.length}</b> reciters available{reciters.data.length < 50 ? ' (the provider currently lists fewer than 50)' : ''}.</p>
+          <input className={cn(sel, 'mt-2')} placeholder="Search reciters" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <select aria-label="Reciter" className={cn(sel, 'mt-2')} value={reciter?.id} onChange={(e) => { setRid(+e.target.value); setMid(null); }}>{list.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+          {reciter && reciter.moshaf.length > 1 && <select aria-label="Recitation" className={cn(sel, 'mt-2')} value={moshaf?.id} onChange={(e) => setMid(+e.target.value)}>{reciter.moshaf.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>}
+          <select aria-label="Surah" className={cn(sel, 'mt-2')} value={cur} onChange={(e) => setSurah(+e.target.value)}>{avail.map((i) => <option key={i} value={i}>{i}. {surahs.data?.[i - 1]?.englishName ?? `Surah ${i}`}</option>)}</select>
+          <button className={cn(btn, 'mt-3 w-full bg-forest-700 text-white hover:bg-forest-700')} disabled={!reciter || !moshaf || !cur} onClick={() => reciter && moshaf && cur && player.playQuran(reciter, moshaf, cur)}><Play className="h-4 w-4" />Play from this surah</button>
+          <p className="mt-3 text-xs text-ink/60">When a surah ends, the next one plays automatically. Playback continues while you browse the site or use other apps, and the controls appear on your phone’s lock screen. Use the bar at the bottom to pause or skip.</p>
+        </div>
       )}
       <Attribution>Reciter catalogue and audio files are provided live by <a className="underline" href="https://mp3quran.net">MP3Quran.net</a>. Audio is streamed from their servers and is not stored by this site.</Attribution>
     </div>
@@ -187,13 +97,7 @@ function Prayer() {
 }
 
 /* ------------------------------------------------------------------ Hadith */
-interface CmsItem { id: string; type: string; title: string; arabic?: string; body?: string; source?: string }
-function useCms(type: string) {
-  return useAsync(async () => {
-    const snap = await getDocs(query(collection(db(), 'islamicContent'), where('status', '==', 'published'), where('type', '==', type)));
-    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as object) }) as CmsItem);
-  }, [type]);
-}
+function useCms(type: string) { const s = useCmsType(type); return { data: s.items }; }
 function Hadith() {
   const [i, setI] = useState(dailyIndex(new Date(), api.NAWAWI_COUNT));
   const h = useAsync(() => api.nawawiHadith(i + 1), [i]);
@@ -206,8 +110,9 @@ function Hadith() {
         {h.data.arabic && <p dir="rtl" lang="ar" className="font-serif text-xl leading-[2.1]">{h.data.arabic}</p>}
         <p className="mt-3 text-[15px] leading-relaxed">{h.data.english}</p>
         <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-ink/65"><dt className="font-semibold">Collection</dt><dd>{h.data.collection}</dd><dt className="font-semibold">Reference</dt><dd>{h.data.reference}</dd><dt className="font-semibold">Grading</dt><dd>{h.data.grade}</dd></dl>
+        <div className="mt-3"><ShareButton text={`${h.data.english}\n— ${h.data.reference}`} path="/islamic?tab=hadith" /></div>
       </article>}
-      {cms.data?.map((c) => <article key={c.id} className={card}><h3 className="font-medium text-forest-700">{c.title}</h3>{c.arabic && <p dir="rtl" lang="ar" className="mt-2 font-serif text-xl leading-[2.1]">{c.arabic}</p>}{c.body && <p className="mt-2 text-sm">{c.body}</p>}{c.source && <p className="mt-2 text-xs text-ink/60">Source: {c.source}</p>}</article>)}
+      {cms.data?.map((c) => <article key={c.id} className={card}><h3 className="font-medium text-forest-700">{c.title}</h3>{c.arabic && <p dir="rtl" lang="ar" className="mt-2 font-serif text-xl leading-[2.1]">{c.arabic}</p>}{c.body && <p className="mt-2 text-sm">{c.body}</p>}{c.source && <p className="mt-2 text-xs text-ink/60">Source: {c.source}</p>}<div className="mt-2"><ShareButton text={`${c.title}\n${c.arabic ?? ''}\n${c.body ?? ''}${c.source ? '\n— ' + c.source : ''}`} path="/islamic?tab=hadith" /></div></article>)}
       <Attribution>Hadith text from the open <a className="underline" href="https://github.com/fawazahmed0/hadith-api">hadith-api</a> dataset (Forty Hadith of an-Nawawi). Where the source gives no grading, none is shown. The school can add further verified hadith from the website admin area.</Attribution>
     </div>
   );
@@ -227,6 +132,7 @@ function AdhkarCard({ a }: { a: Adhkar }) {
       <div className="mt-3 flex items-center gap-2">
         <button className={cn(btn, 'min-w-28 bg-forest-700 text-white hover:bg-forest-700')} onClick={() => setCount(Math.min(count + 1, a.times))} disabled={done}>{done ? 'Done ✓' : `Tap  ${count} / ${a.times}`}</button>
         <button className={btn} onClick={() => setCount(0)} aria-label="Reset counter"><RotateCcw className="h-4 w-4" /></button>
+        <ShareButton text={`${a.arabic ?? passage.data?.arabic.map((x) => x.text).join(' ') ?? ''}\n\n${a.english}\n— ${a.source}`} path="/islamic?tab=adhkar" />
       </div>
     </li>
   );
@@ -282,15 +188,20 @@ function Calendar() {
 
 /* ------------------------------------------------------------------ Page */
 export function IslamicPage() {
-  const [tab, setTab] = useState<Tab>('quran');
+  const [params, setParams] = useSearchParams();
+  const asked = params.get('tab') as Tab | null;
+  const tab: Tab = TABS.some(([id]) => id === asked) ? (asked as Tab) : 'home';
+  const setTab = (t: Tab) => { setParams(t === 'home' ? {} : { tab: t }, { replace: false }); window.scrollTo(0, 0); };
+  const [listenSurah, setListenSurah] = useState(1);
   useEffect(() => { document.title = 'Islamic Portal — Episteme Learning Academy'; }, []);
+  useEffect(() => { const f = (e: Event) => { setListenSurah((e as CustomEvent<number>).detail || 1); setTab('listen'); }; document.addEventListener('ela-go-listen', f); return () => document.removeEventListener('ela-go-listen', f); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   return (
     <div className="bg-cream">
       <header className="bg-forest-700 py-10 text-center text-white"><p dir="rtl" lang="ar" className="font-serif text-2xl">بِسْمِ ٱللّٰهِ ٱلرَّحْمٰنِ ٱلرَّحِيمِ</p><h1 className="mt-2 font-heading text-3xl">Islamic Portal</h1><p className="mt-1 text-sm text-gold-300">Where Learning Meets Morality</p></header>
-      <div className="mx-auto max-w-3xl px-4 pb-16">
+      <div className="mx-auto max-w-3xl px-4 pb-32">
         <nav aria-label="Islamic portal sections" className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-cream/95 px-4 py-3 backdrop-blur">{TABS.map(([id, label]) => <button key={id} onClick={() => setTab(id)} aria-current={tab === id} className={cn('whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium', tab === id ? 'border-forest-700 bg-forest-700 text-white' : 'border-line bg-white text-forest-700')}>{label}</button>)}</nav>
         <main className="mt-3">
-          {tab === 'quran' && <Quran />}{tab === 'listen' && <Listen />}{tab === 'prayer' && <Prayer />}{tab === 'hadith' && <Hadith />}{tab === 'adhkar' && <AdhkarTab />}{tab === 'tajweed' && <Tajweed />}{tab === 'calendar' && <Calendar />}
+          {tab === 'home' && <Dashboard go={(t) => setTab(t as Tab)} />}{tab === 'quran' && <Quran />}{tab === 'listen' && <Listen initialSurah={listenSurah} />}{tab === 'khutbah' && <Khutbah />}{tab === 'videos' && <Videos />}{tab === 'alarms' && <AlarmsTab />}{tab === 'prayer' && <Prayer />}{tab === 'hadith' && <Hadith />}{tab === 'adhkar' && <AdhkarTab />}{tab === 'tajweed' && <Tajweed />}{tab === 'calendar' && <Calendar />}
         </main>
       </div>
     </div>

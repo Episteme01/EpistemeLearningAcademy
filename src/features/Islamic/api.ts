@@ -41,6 +41,40 @@ export async function juzText(n: number): Promise<Passage> {
   const j = await getJson<{ data: Array<{ ayahs: Ayah[] }> }>(`${QURAN}/juz/${n}/editions/quran-uthmani,en.sahih`);
   return pair(j.data);
 }
+
+/* ---- reader with scripts and units (surah / juz / Madani mushaf page) ---- */
+export type Script = 'uthmani' | 'simple' | 'tajweed' | 'indopak';
+export type Unit = 'surah' | 'juz' | 'page';
+export const SCRIPTS: Array<{ id: Script; label: string; provider: string }> = [
+  { id: 'uthmani', label: 'Uthmani', provider: 'AlQuran Cloud' }, { id: 'simple', label: 'Simple (Imla\u2019i)', provider: 'AlQuran Cloud' },
+  { id: 'tajweed', label: 'Tajweed (colour-coded)', provider: 'Quran.com' }, { id: 'indopak', label: 'Indo-Pak', provider: 'Quran.com' },
+];
+export interface Row { key: string; surah: number; ayah: number; arabic: string; html: boolean; english: string; page?: number }
+const QCOM = 'https://api.quran.com/api/v4/quran/verses';
+const UNIT_Q: Record<Unit, string> = { surah: 'chapter_number', juz: 'juz_number', page: 'page_number' };
+const keyOf = (surah: number, ayah: number) => `${surah}:${ayah}`;
+
+export async function readerRows(unit: Unit, n: number, script: Script): Promise<Row[]> {
+  const ed = script === 'simple' ? 'quran-simple' : 'quran-uthmani';
+  const j = await getJson<{ data: Array<{ ayahs: Array<Ayah & { surah?: { number: number } }> }> }>(`${QURAN}/${unit === 'page' ? 'page' : unit}/${n}/editions/${ed},en.sahih`);
+  const [ar, en] = j.data;
+  const eng = new Map(en.ayahs.map((a) => [keyOf(a.surah?.number ?? n, a.numberInSurah), a.text]));
+  let alt: Map<string, string> | null = null;
+  if (script === 'tajweed' || script === 'indopak') {
+    const q = await getJson<{ verses?: Array<{ verse_key: string; text_uthmani_tajweed?: string; text_indopak?: string; text_indopak_nastaleeq?: string }> }>(`${QCOM}/${script === 'tajweed' ? 'uthmani_tajweed' : 'indopak'}?${UNIT_Q[unit]}=${n}`);
+    alt = new Map((q.verses ?? []).map((v) => [v.verse_key, (script === 'tajweed' ? v.text_uthmani_tajweed : v.text_indopak ?? v.text_indopak_nastaleeq) ?? '']));
+  }
+  return ar.ayahs.map((a) => {
+    const surah = a.surah?.number ?? n, k = keyOf(surah, a.numberInSurah);
+    const t = alt?.get(k);
+    return { key: k, surah, ayah: a.numberInSurah, arabic: t || a.text, html: script === 'tajweed' && !!t, english: eng.get(k) ?? '', page: a.page };
+  });
+}
+export async function ayahByNumber(n: number): Promise<{ arabic: string; english: string; surahName: string; surah: number; ayah: number }> {
+  const j = await getJson<{ data: Array<{ text: string; numberInSurah: number; surah: { number: number; englishName: string } }> }>(`${QURAN}/ayah/${n}/editions/quran-uthmani,en.sahih`);
+  const [a, e] = j.data;
+  return { arabic: a.text, english: e.text, surahName: a.surah.englishName, surah: a.surah.number, ayah: a.numberInSurah };
+}
 export async function ayahRange(surah: number, from: number, to: number): Promise<Passage> {
   const p = await surahText(surah);
   const f = (a: Ayah) => a.numberInSurah >= from && a.numberInSurah <= to;
