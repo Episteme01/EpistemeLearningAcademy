@@ -163,6 +163,22 @@ export function CmsAnnouncements() {
   } as CrudConfig<Row & { title: string }>} />;
 }
 
+export function CmsIslamic() {
+  return <CrudPage config={{
+    collection: C.islamicContent, singular: 'Islamic item', plural: 'Islamic content', description: 'Tajweed lessons, extra hadith and adhkar shown on the public /islamic page. Always give a source for hadith and adhkar.', auditActions: true,
+    fields: [
+      { name: 'type', label: 'Section', type: 'select', required: true, defaultValue: 'tajweed', options: [{ value: 'tajweed', label: 'Tajweed lesson' }, { value: 'hadith', label: 'Hadith' }, { value: 'adhkar', label: 'Adhkar / dua' }] },
+      { name: 'title', label: 'Title', type: 'text', required: true },
+      { name: 'arabic', label: 'Arabic text (optional)', type: 'textarea' },
+      { name: 'body', label: 'English text / lesson', type: 'textarea', required: true },
+      { name: 'source', label: 'Source (collection, number, grading)', type: 'text' },
+      { name: 'status', label: 'Status', type: 'select', required: true, defaultValue: 'draft', options: [{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }] },
+    ],
+    columns: [{ key: 't', header: 'Title', primary: true, cell: (r: Row & { title: string }) => <span className="font-medium">{r.title}</span> }, { key: 'ty', header: 'Section', cell: (r: Row & { type?: string }) => r.type }, { key: 's', header: 'Status', cell: (r: Row & { status: string }) => <StatusBadge status={r.status} /> }],
+    searchKeys: ['title', 'body'], sort: (a, b) => (toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0),
+  } as CrudConfig<Row & { title: string }>} />;
+}
+
 /* ------------------------------------------------------- settings editors */
 export function SettingsForm({ id, title, description, fields, defaults }: { id: string; title: string; description: string; fields: FieldDef[]; defaults: Record<string, unknown> }) {
   const toast = useToast();
