@@ -7,6 +7,7 @@ export const C = {
   programmes: 'programmes',
   categories: 'categories',
   announcements: 'announcements',
+  islamicContent: 'islamicContent',
   media: 'media',
   resources: 'resources',
   settings: 'settings',

@@ -36,6 +36,7 @@ export const NAV: NavItem[] = [
   { label: 'Programmes', to: '/app/cms/programmes', icon: Layers, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Categories', to: '/app/cms/categories', icon: Tags, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Announcements', to: '/app/cms/announcements', icon: Megaphone, platform: 'cms', roles: [...CMS_PUB, 'principal'], group: 'Content' },
+  { label: 'Islamic content', to: '/app/cms/islamic', icon: Megaphone, platform: 'cms', roles: CMS_PUB, group: 'Content' },
   { label: 'Homepage & hero', to: '/app/cms/homepage', icon: PenSquare, platform: 'cms', roles: CMS_PUB, group: 'Site' },
   { label: 'Navigation', to: '/app/cms/navigation', icon: MenuIcon, platform: 'cms', roles: CMS_PUB, group: 'Site' },
   { label: 'Media library', to: '/app/cms/media', icon: Image, platform: 'cms', roles: CMS_ALL, group: 'Site' },
