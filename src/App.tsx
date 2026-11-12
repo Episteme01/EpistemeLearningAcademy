@@ -29,6 +29,7 @@ import { PaymentReturn } from '@/features/pay/PaymentReturn';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { NoticesPage } from '@/features/notices/NoticesPage';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
+import { IslamicPage } from '@/features/islamic/IslamicPage';
 import { StorageInventory } from '@/features/media/StorageInventory';
 
 const STAFF_ACADEMIC: Role[] = ['super_admin', 'principal', 'admin', 'teacher'];
@@ -54,6 +55,7 @@ export function App() {
         <Route path="resources" element={<P.ResourcesPage />} />
         <Route path="blog" element={<P.BlogPage />} />
         <Route path="blog/:slug" element={<P.BlogPostPage />} />
+        <Route path="islamic" element={<IslamicPage />} />
         <Route path="contact" element={<P.ContactPage />} />
         <Route path="faq" element={<P.FaqPage />} />
         <Route path="search" element={<P.SearchPage />} />
@@ -72,6 +74,7 @@ export function App() {
         <Route path="cms/posts" element={guard('/app/cms/posts', <Cms.CmsPosts />)} />
         <Route path="cms/programmes" element={guard('/app/cms/programmes', <Cms.CmsProgrammes />)} />
         <Route path="cms/categories" element={guard('/app/cms/categories', <Cms.CmsCategories />)} />
+        <Route path="cms/islamic" element={guard('/app/cms/islamic', <Cms.CmsIslamic />)} />
         <Route path="cms/announcements" element={guard('/app/cms/announcements', <Cms.CmsAnnouncements />)} />
         <Route path="cms/homepage" element={guard('/app/cms/homepage', <Cms.CmsHomepage />)} />
         <Route path="cms/navigation" element={guard('/app/cms/navigation', <Cms.CmsNavigation />)} />
