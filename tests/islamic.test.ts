@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ADHKAR, ADHKAR_GROUPS, audioUrl, cleanReciters, dailyIndex, fmtCountdown, hijriOf, minutesInZone, nextPrayer, pad3, surahsAvailable, TAJWEED, toMinutes } from '../src/features/islamic/lib';
+import { ADHKAR, ADHKAR_GROUPS, audioUrl, cleanReciters, dailyIndex, fmtCountdown, hijriOf, minutesInZone, nextPrayer, pad3, surahsAvailable, TAJWEED, toMinutes } from '../src/features/Islamic/lib';
 
 describe('audio', () => {
   it('builds mp3quran urls', () => {
