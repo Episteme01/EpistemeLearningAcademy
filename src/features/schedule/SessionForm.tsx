@@ -6,11 +6,13 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
 import { rolesOf } from '@/config/permissions';
-import { getById } from '@/services/db';
-import { createSeries, editSessions, type EditChanges, type Scope, type SeriesInput } from '@/services/schedule';
+import { getById, listDocs } from '@/services/db';
+import { checkSchedule, createSeries, editSessions, type EditChanges, type Scope, type SeriesInput } from '@/services/schedule';
 import { MAX_OCCURRENCES, defaultRecurrence, type Recurrence } from '@/lib/schedule/recurrence';
 import { DEFAULT_TZ, format12, utcToZoned } from '@/lib/schedule/tz';
 import { errorMessage, toDate } from '@/lib/utils';
+import { hasErrors } from '@/lib/schedule/validate';
+import { where } from 'firebase/firestore';
 import type { ClassRoom, Session, Student, Subject, TimetableSeries, UserProfile, WithId } from '@/types/models';
 
 const DAYS = [['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 0]] as const;
@@ -88,6 +90,19 @@ export function SessionForm({ open, onClose, session, initialDate, onDone }: {
     const by = { uid, name: profile?.displayName ?? '' };
     setBusy(true);
     try {
+      // conflict / validity checks before anything is written
+      let dates: string[] | undefined; let exclude: string[] | undefined;
+      if (editing) {
+        const sib = await listDocs<Session>(C.sessions, [where('seriesId', '==', session!.seriesId)]);
+        const now = Date.now();
+        const hit = sib.filter((r) => r.id === session!.id || (scope !== 'one' && r.status === 'scheduled' && !r.overridden && (toDate(r.startAt)?.getTime() ?? 0) > now && (scope === 'all' || r.seriesIndex >= session!.seriesIndex)));
+        dates = hit.map((r) => r.localDate); exclude = hit.map((r) => r.id);
+      }
+      const issues = await checkSchedule({ title: f.title, teacherUid: f.teacherUid, classId: editing ? (session!.classId || undefined) : (f.classId || undefined), subjectId: f.subjectId || undefined, courseId: f.courseId || undefined, startDate: f.date, startTime: f.start, endTime: f.end, recurrence: editing ? defaultRecurrence() : rec },
+        { leader, myUid: uid, excludeIds: exclude, dates });
+      if (hasErrors(issues)) { toast.error(issues.filter((i) => i.level === 'error').map((i) => i.message).join(' ')); setBusy(false); return; }
+      const warn = issues.filter((i) => i.level === 'warning');
+      if (warn.length && !window.confirm(`${warn.map((i) => '• ' + i.message).join('\n')}\n\nSchedule anyway?`)) { setBusy(false); return; }
       if (!editing) {
         if (rec.freq !== 'none' && rec.end.type === 'date' && rec.end.until < f.date) throw new Error('The end date must be on or after the first class.');
         const a = audience();
