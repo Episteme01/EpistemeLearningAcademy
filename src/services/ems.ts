@@ -5,9 +5,9 @@ import { batchSet, clean, getById, listDocs, patchDoc } from './db';
 import { nextInvoiceNo, nextReceiptNo } from './counters';
 import { notifyUsers } from './notifications';
 import { audit } from './audit';
-import { applyPayment, invoiceStatus, invoiceTotal } from '@/lib/finance';
+import { alreadyInvoiced, applyPayment, invoiceStatus, invoiceTotal, planCreditApplication, round2, validMoney, type CreditLike } from '@/lib/finance';
 import { computeSubjectResult, rankPositions, summarise, type GradingScale } from '@/lib/assessment';
-import type { Invoice, Parent, Payment, ReportCard, ResultRecord, Student, WithId, FeeStructure } from '@/types/models';
+import type { Invoice, Parent, Payment, ReportCard, ResultRecord, Student, StudentCredit, WithId, FeeStructure } from '@/types/models';
 
 export const fullName = (p: { firstName?: string; lastName?: string; otherNames?: string }) => [p.firstName, p.otherNames, p.lastName].filter(Boolean).join(' ');
 
@@ -57,24 +57,90 @@ export async function promoteStudents(students: WithId<Student>[], toClassId: st
   void audit('students.promote', `classes/${toClassId}`, `${students.length} learners`);
 }
 
+/**
+ * Creates (or, with `invoiceData` = null, updates) an invoice and pays it from the learner's waiting credits in ONE transaction.
+ * Credits are re-read inside the transaction, so the same money can never be applied twice.
+ */
+async function settleWithCredits(invoiceId: string, invoiceData: (Omit<Invoice, 'createdAt'> & Record<string, unknown>) | null, creditIds: string[]) {
+  const invRef = doc(db(), C.invoices, invoiceId);
+  let applied = 0;
+  await runTransaction(db(), async (tx) => {
+    let inv: Invoice;
+    if (invoiceData) inv = invoiceData as Invoice;
+    else { const snap = await tx.get(invRef); if (!snap.exists()) throw new Error('Invoice no longer exists.'); inv = snap.data() as Invoice; if (inv.status === 'cancelled') return; }
+    const fresh: (CreditLike & { data: StudentCredit })[] = [];
+    for (const id of creditIds) {
+      const snap = await tx.get(doc(db(), C.studentCredits, id));
+      if (snap.exists()) { const d = snap.data() as StudentCredit; fresh.push({ id, remaining: d.remaining, termId: d.termId, structureId: d.structureId, paidAt: d.paidAt, data: d }); }
+    }
+    const plan = planCreditApplication(inv, fresh);
+    if (invoiceData) tx.set(invRef, { ...clean(invoiceData), paid: plan.paid, balance: plan.balance, status: plan.status, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    else if (plan.applications.length) tx.update(invRef, { paid: plan.paid, balance: plan.balance, status: plan.status, updatedAt: serverTimestamp() });
+    for (const a of plan.applications) {
+      const c = fresh.find((x) => x.id === a.creditId)!;
+      const left = round2(c.remaining - a.amount);
+      tx.update(doc(db(), C.studentCredits, a.creditId), { remaining: left, updatedAt: serverTimestamp() });
+      tx.set(doc(db(), C.payments, `${a.creditId}_${invoiceId}`), clean({
+        receiptNo: c.data.receiptNo, invoiceId, invoiceNo: inv.invoiceNo, studentId: inv.studentId, studentName: inv.studentName, studentUid: inv.studentUid, parentUids: inv.parentUids,
+        amount: a.amount, method: c.data.method, reference: c.data.reference ?? '', paidAt: c.data.paidAt, recordedBy: `${c.data.recordedBy} (advance payment)`, currency: inv.currency, creditId: a.creditId,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      }));
+    }
+    applied = plan.applied;
+  });
+  return applied;
+}
+
+const creditsOf = async (studentId: string) => (await listDocs<StudentCredit>(C.studentCredits, [where('studentId', '==', studentId)])).filter((c) => c.remaining > 0);
+
+/** Creates invoices for the given learners (a whole class, a hand-picked list, or one learner). Skips anyone already billed for this fee category and term. */
 export async function generateInvoices(opts: { structure: WithId<FeeStructure>; students: WithId<Student>[]; termId: string; termName: string; dueDate: string }) {
-  let created = 0;
+  let created = 0; let credited = 0;
   const existing = await listDocs<Invoice>(C.invoices, [where('termId', '==', opts.termId)]);
-  const have = new Set(existing.filter((i) => i.items.map((x) => x.label).join() === opts.structure.items.map((x) => x.label).join()).map((i) => i.studentId));
+  const have = alreadyInvoiced(existing, opts.structure, opts.termId);
   for (const s of opts.students) {
     if (have.has(s.id)) continue;
     const invoiceNo = await nextInvoiceNo();
     const total = invoiceTotal(opts.structure.items);
-    const inv: Omit<Invoice, 'createdAt'> = {
+    const inv = {
       invoiceNo, studentId: s.id, studentName: fullName(s), studentUid: s.studentUid ?? '', parentUids: s.parentUids ?? [], classId: s.classId, termId: opts.termId, termName: opts.termName,
       items: opts.structure.items, total, paid: 0, balance: total, status: invoiceStatus(total, 0, opts.dueDate), dueDate: opts.dueDate, currency: opts.structure.currency,
-    };
-    await batchSet([{ col: C.invoices, id: invoiceNo.replace(/[^A-Za-z0-9-]/g, ''), data: { ...inv, createdAt: serverTimestamp() }, merge: false }]);
+      structureId: opts.structure.id, structureName: opts.structure.name,
+    } as Omit<Invoice, 'createdAt'> & Record<string, unknown>;
+    const credits = await creditsOf(s.id);
+    credited += await settleWithCredits(invoiceNo.replace(/[^A-Za-z0-9-]/g, ''), inv, credits.map((c) => c.id));
     created++;
     if (s.parentUids?.length) void notifyUsers(s.parentUids, { title: `New invoice ${invoiceNo}`, body: `${fullName(s)} — ${opts.termName}`, link: '/app/ems/children' });
   }
-  void audit('invoices.generate', `feeStructures/${opts.structure.id}`, `${created} invoices`);
-  return created;
+  void audit('invoices.generate', `feeStructures/${opts.structure.id}`, `${created} invoices, ${credited} from advance payments`);
+  return { created, skipped: opts.students.length - created, credited };
+}
+
+/**
+ * Records money a learner paid BEFORE an invoice existed (or an advance). It gets a receipt number and waits on the account;
+ * any matching unpaid invoice the learner already has is paid from it straight away, and invoices created later pick it up automatically.
+ */
+export async function recordAdvancePayment(student: WithId<Student>, input: { amount: number; method: StudentCredit['method']; reference?: string; paidAt: string; by: string; currency: string; termId?: string; termName?: string; structureId?: string; structureName?: string; note?: string }) {
+  if (!validMoney(input.amount)) throw new Error('Enter a valid amount greater than zero (at most 2 decimal places).');
+  if (!input.paidAt) throw new Error('Choose the date the money was paid.');
+  const receiptNo = await nextReceiptNo();
+  const id = receiptNo.replace(/[^A-Za-z0-9-]/g, '');
+  await runTransaction(db(), async (tx) => {
+    const ref = doc(db(), C.studentCredits, id);
+    if ((await tx.get(ref)).exists()) throw new Error('This receipt number already exists. Try again.');
+    tx.set(ref, clean({
+      studentId: student.id, studentName: fullName(student), studentUid: student.studentUid ?? '', parentUids: student.parentUids ?? [], amount: input.amount, remaining: input.amount, receiptNo,
+      method: input.method, reference: input.reference ?? '', paidAt: input.paidAt, termId: input.termId ?? '', termName: input.termName ?? '', structureId: input.structureId ?? '', structureName: input.structureName ?? '',
+      note: input.note ?? '', recordedBy: input.by, currency: input.currency, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    }));
+  });
+  void audit('payment.advance', `studentCredits/${id}`, `${receiptNo}: ${input.amount} for ${fullName(student)}`);
+  // pay any invoice the learner already has (oldest first)
+  let applied = 0;
+  const invs = (await listDocs<Invoice>(C.invoices, [where('studentId', '==', student.id)])).filter((i) => i.status !== 'cancelled' && i.balance > 0).sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+  for (const inv of invs) applied += await settleWithCredits(inv.id, null, [id]);
+  if (student.parentUids?.length) void notifyUsers(student.parentUids, { title: `Payment recorded (${receiptNo})`, body: `${fullName(student)}`, link: '/app/ems/children' });
+  return { receiptNo, applied, waiting: round2(input.amount - applied) };
 }
 
 /**
