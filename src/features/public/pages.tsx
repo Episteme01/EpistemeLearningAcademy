@@ -18,6 +18,7 @@ import { useSeo } from '@/hooks/useSeo';
 import { ShareButton } from '@/features/Islamic/share';
 import { subscribeDoc, getById } from '@/services/db';
 import { sanitizeHtml, stripHtml } from '@/lib/sanitize';
+import { SpotlightSection } from '@/features/spotlight/Spotlight';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
 import { CLASS_LEVELS, DEFAULT_FAQ, DEFAULT_PAGES, DEFAULT_PROGRAMMES, PROGRAMME_CHOICES } from './content';
 import { useSite } from './PublicLayout';
@@ -79,6 +80,8 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      <SpotlightSection />
 
       <Section>
         <div className="grid items-center gap-10 lg:grid-cols-2">
