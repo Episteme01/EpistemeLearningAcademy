@@ -95,3 +95,5 @@
 .tj-idgham_ghunnah,.tj-idgham_wo_ghunnah,.tj-idgham_mutajanisayn,.tj-idgham_mutaqaribayn{color:#15803d}.tj-ghunnah{color:#ea580c}
 .tj-end{color:#c8a45a}
 .arabic-indopak{font-family:"Noto Naskh Arabic","Scheherazade New","Amiri",serif}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
