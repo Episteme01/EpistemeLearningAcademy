@@ -6,6 +6,8 @@ import { monthKeyOf, utcToZoned, zonedToUtc } from '@/lib/schedule/tz';
 import { batchSet, listDocs } from './db';
 import { audit } from './audit';
 import { notifyUsers } from './notifications';
+import { validateSchedule, type Candidate, type ExistingSlot, type Issue } from '@/lib/schedule/validate';
+import type { ClassRoom, TeacherAssignment } from '@/types/models';
 import type { Session, SessionAccessLog, SessionLink, SessionStatus, TimetableSeries, WithId } from '@/types/models';
 import { toDate } from '@/lib/utils';
 
@@ -180,4 +182,32 @@ export async function logAccess(s: WithId<Session>, who: { uid: string; name: st
   try {
     await addDoc(collection(db(), C.sessionAccess), { sessionId: s.id, teacherUid: s.teacherUid, uid: who.uid, name: who.name.slice(0, 120), role: who.role, action, at: serverTimestamp() });
   } catch (e) { console.warn('access log failed', e); }
+}
+
+/* ---------------------------------------------------------------- conflict checks */
+
+/**
+ * Loads what is needed and returns scheduling problems (errors block, warnings ask for confirmation).
+ * Leaders see every session; a teacher only sees sessions they are part of, so a class clash with a
+ * colleague's lesson can only be detected by leaders — the rules never reveal other teachers' classes.
+ */
+export async function checkSchedule(c: Candidate, o: { leader: boolean; myUid: string; excludeIds?: string[]; dates?: string[] }): Promise<Issue[]> {
+  const rows: WithId<Session>[] = [];
+  if (o.leader) {
+    rows.push(...await listDocs<Session>(C.sessions, [where('teacherUid', '==', c.teacherUid)]));
+    if (c.classId) rows.push(...await listDocs<Session>(C.sessions, [where('classId', '==', c.classId)]));
+  } else rows.push(...await listDocs<Session>(C.sessions, [where('viewers', 'array-contains', o.myUid)]));
+  const seen = new Set<string>();
+  const existing: ExistingSlot[] = rows.filter((r) => !seen.has(r.id) && seen.add(r.id)).map((r) => ({ id: r.id, teacherUid: r.teacherUid, classId: r.classId, startMs: toDate(r.startAt)?.getTime() ?? 0, endMs: toDate(r.endAt)?.getTime() ?? 0, status: r.status, title: r.title, localDate: r.localDate }));
+  const [cls, course, assign] = await Promise.all([
+    c.classId ? getDoc(doc(db(), C.classes, c.classId)) : Promise.resolve(null),
+    c.courseId ? getDoc(doc(db(), C.courses, c.courseId)) : Promise.resolve(null),
+    listDocs<TeacherAssignment>(C.teacherAssignments, [where('staffUid', '==', c.teacherUid)]).catch(() => [] as WithId<TeacherAssignment>[]),
+  ]);
+  return validateSchedule(c, {
+    existing, excludeIds: o.excludeIds, dates: o.dates,
+    classSubjectIds: cls?.exists() ? ((cls.data() as ClassRoom).subjectIds ?? []) : null,
+    courseInstructorUid: course?.exists() ? ((course.data() as { instructorUid?: string }).instructorUid ?? null) : null,
+    assignments: assign.map((a) => ({ staffUid: a.staffUid, classId: a.classId, subjectId: a.subjectId })),
+  });
 }
