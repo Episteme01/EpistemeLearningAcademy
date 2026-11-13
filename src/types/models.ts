@@ -288,7 +288,7 @@ export interface Lesson {
   moduleId: string;
   title: string;
   order: number;
-  type: 'text' | 'video' | 'pdf' | 'file';
+  type: 'text' | 'video' | 'pdf' | 'file' | 'presentation';
   content?: string;
   videoUrl?: string;
   fileUrl?: string;
@@ -297,6 +297,10 @@ export interface Lesson {
   attachments?: { name: string; url: string }[];
   durationMin?: number;
   preview?: boolean;
+  /** presentation lessons: a library resource (resources/{id}) or a Google Slides link */
+  resourceId?: string; resourceTitle?: string; slidesUrl?: string;
+  /** 'watch' = needs tracked playback (direct video files only); default 'manual' */
+  completionRule?: 'manual' | 'watch';
 }
 
 export interface CourseEnrollment {
@@ -560,4 +564,28 @@ export interface SocialPost {
   thumbnailUrl?: string; imageUrl?: string; videoUrl?: string;
   status: 'draft' | 'published'; featured?: boolean; order?: number;
   publishedAt?: TS; createdAt?: TS; updatedAt?: TS;
+}
+
+/** Lesson written in the Lesson Authoring Studio (collection lessonPlans). Teacher-only notes are in lessonGuides/{id}. */
+export interface LessonPlan {
+  title: string; status: 'draft' | 'review' | 'approved' | 'published' | 'archived';
+  curriculumId: string; topicId?: string; subtopicId?: string; week?: number; termId?: string;
+  subjectId?: string; subjectName?: string; classId?: string; className?: string; courseId?: string;
+  durationMin?: number; objectives?: string[]; materials?: string[]; references?: string[]; supplementary?: { title: string; url: string }[];
+  previousKnowledge?: string; introduction?: string; presentation?: string; teacherActivities?: string; learnerActivities?: string; examples?: string;
+  practical?: string; assessmentQuestions?: string; assignment?: string; conclusion?: string;
+  authorUid: string; authorName?: string; teacherUids: string[]; reviewNote?: string; approvedBy?: string; publishedAt?: TS; version?: number;
+  createdAt?: TS; updatedAt?: TS;
+}
+export interface LessonGuide { notes?: string; preparation?: string; teachingGuidance?: string; expectedAnswers?: string; differentiation?: string; updatedAt?: TS }
+
+/** Per-learner activity on a lesson (collection lessonActivity, id uid_lessonId). Opening a lesson is NOT completion. */
+export interface LessonActivity {
+  uid: string; courseId: string; lessonId: string; parentUids: string[];
+  watchedPct: number; ranges: number[][]; positionSec?: number; durationSec?: number; viewedAt?: TS; updatedAt?: TS;
+}
+/** Teacher message to a learner's parents (collection learningFeedback). */
+export interface LearningFeedback {
+  studentId: string; studentUid: string; studentName: string; parentUids: string[];
+  courseId?: string; courseTitle?: string; message: string; teacherUid: string; teacherName: string; createdAt?: TS;
 }
