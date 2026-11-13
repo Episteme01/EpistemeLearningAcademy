@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { where } from 'firebase/firestore';
 import { CheckCircle2, Circle, FileText, Pencil, Plus, Trash2, Users } from 'lucide-react';
@@ -17,8 +17,13 @@ import { can } from '@/config/permissions';
 import { createDoc, patchDoc, removeDoc } from '@/services/db';
 import { enrolClass, enrolStudent, setLessonComplete } from '@/services/lms';
 import { errorMessage, slugify } from '@/lib/utils';
-import type { ClassRoom, Course, CourseEnrollment, CourseModule, Lesson, Student, WithId } from '@/types/models';
+import type { ClassRoom, Course, CourseEnrollment, CourseModule, Lesson, LessonActivity, Student, WithId } from '@/types/models';
 import { QuizTake } from './work';
+import { ResourceViewer } from '@/features/learning/LessonMedia';
+import { PresentationViewer, VideoPlayer } from '@/features/learning/Viewers';
+import { canComplete, isTrackable, googleSlidesEmbed } from '@/lib/learning';
+import { parseVideoUrl } from '@/lib/spotlight';
+import { saveActivity } from '@/services/learning';
 
 type Row = Record<string, unknown> & { id: string };
 
@@ -91,9 +96,12 @@ export function CourseBuilder() {
       </Dialog>
       <Dialog open={!!lesDlg} onClose={() => setLesDlg(null)} title={lesDlg?.id ? 'Edit lesson' : 'New lesson'} size="xl">
         {lesDlg && <EntityForm key={lesDlg.id ?? 'n'} initial={lesDlg.id ? ({ ...lesDlg, attachmentsText: (lesDlg.attachments ?? []).map((a) => `${a.name} | ${a.url}`) } as Record<string, unknown>) : null} fields={[
-          { name: 'title', label: 'Title', type: 'text', required: true, span: 2 }, { name: 'type', label: 'Type', type: 'select', required: true, defaultValue: lesDlg.type ?? 'text', options: [{ value: 'text', label: 'Text lesson' }, { value: 'video', label: 'Video lesson' }, { value: 'pdf', label: 'PDF resource' }, { value: 'file', label: 'Downloadable material' }] },
+          { name: 'title', label: 'Title', type: 'text', required: true, span: 2 }, { name: 'type', label: 'Type', type: 'select', required: true, defaultValue: lesDlg.type ?? 'text', options: [{ value: 'text', label: 'Text lesson' }, { value: 'video', label: 'Video lesson' }, { value: 'pdf', label: 'PDF resource' }, { value: 'presentation', label: 'Presentation (library file or Google Slides)' }, { value: 'file', label: 'Downloadable material' }] },
           { name: 'order', label: 'Order', type: 'number', required: true, min: 1, defaultValue: lesDlg.order }, { name: 'durationMin', label: 'Minutes', type: 'number', min: 0 }, { name: 'preview', label: 'Free preview (visible without enrolling)', type: 'checkbox' },
-          { name: 'videoUrl', label: 'Video URL (YouTube / Vimeo / direct .mp4)', type: 'url' }, { name: 'fileUrl', label: 'PDF / file URL', type: 'url', hint: 'Upload in CMS → Media or paste a link.' },
+          { name: 'videoUrl', label: 'Video URL (YouTube / Vimeo / Google Drive / direct .mp4)', type: 'url' },
+          { name: 'completionRule', label: 'Video completion', type: 'select', defaultValue: 'manual', options: [{ value: 'manual', label: 'Learner confirms “Mark complete”' }, { value: 'watch', label: 'Needs 90% tracked playback (direct .mp4/.webm only)' }] },
+          { name: 'resourceId', label: 'Presentation from the Resources library', type: 'ref', ref: { collection: C.resources, label: (r) => String(r.title), labelField: 'resourceTitle', filter: (r) => r.fileKind === 'document' }, hint: 'Upload PDFs / slides in Resources first, publish them for students.' },
+          { name: 'slidesUrl', label: 'or Google Slides link', type: 'url', hint: 'Share the deck as “anyone with the link can view”.' }, { name: 'fileUrl', label: 'PDF / file URL', type: 'url', hint: 'Upload in CMS → Media or paste a link.' },
           { name: 'content', label: 'Lesson text', type: 'richtext' }, { name: 'attachmentsText', label: 'Attachments', type: 'list', hint: 'One per line:  Name | https://…' }]}
           onSubmit={async (p) => {
             try {
@@ -153,12 +161,6 @@ export function MyCoursesPage() {
   );
 }
 
-function embedUrl(u: string): string | null {
-  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/); if (yt) return `https://www.youtube-nocookie.com/embed/${yt[1]}`;
-  const vm = u.match(/vimeo\.com\/(\d+)/); if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
-  return null;
-}
-
 export function CoursePlayer() {
   const { id = '' } = useParams();
   const { uid, role } = useAuth();
@@ -171,16 +173,32 @@ export function CoursePlayer() {
   const quizzes = useCollection<Row>(C.quizzes, () => [where('courseId', '==', id)], id);
   const [cur, setCur] = useState('');
   const [quiz, setQuiz] = useState<Row | null>(null);
+  const act = useDocument<LessonActivity>(C.lessonActivity, role === 'student' && uid && cur ? `${uid}_${cur}` : null);
+  const viewedRef = useRef('');
   const ordered = useMemo(() => [...mods.data].sort((a, b) => a.order - b.order).flatMap((m) => lessons.data.filter((l) => l.moduleId === m.id).sort((a, b) => a.order - b.order)), [mods.data, lessons.data]);
   useEffect(() => { if (!cur && ordered[0]) setCur(ordered[0].id); }, [ordered, cur]);
+  const curLesson = ordered.find((l) => l.id === cur);
+  const enrParents = enr.data?.parentUids;
+  useEffect(() => {
+    // opening a lesson is recorded as "viewed" (never as complete); video lessons record their own progress
+    if (role !== 'student' || !uid || !curLesson || !enrParents || curLesson.type === 'video' || act.loading || act.data || viewedRef.current === curLesson.id) return;
+    viewedRef.current = curLesson.id;
+    void saveActivity({ uid, courseId: id, lessonId: curLesson.id, parentUids: enrParents, ranges: [], watchedPct: 0 }).catch(() => undefined);
+  }, [role, uid, curLesson, enrParents, act.loading, act.data, id]);
   if (course.loading || lessons.loading) return <Spinner />;
   if (!course.data) return <EmptyState title="Course unavailable" description="It may be unpublished or you may not be enrolled." />;
   const lesson = ordered.find((l) => l.id === cur);
   const done = new Set(prog.data.map((p) => p.lessonId));
   const student = role === 'student';
-  const toggle = async () => { if (!lesson || !uid) return; try { await setLessonComplete({ uid, courseId: id, lessonId: lesson.id, complete: !done.has(lesson.id), totalLessons: ordered.length }); } catch (e) { toast.error(errorMessage(e)); } };
+  const parsedVid = lesson?.type === 'video' && lesson.videoUrl ? parseVideoUrl(lesson.videoUrl) : null;
+  const trackable = isTrackable(parsedVid?.provider);
+  const parents = enr.data?.parentUids ?? [];
+  const record = (s: { ranges: [number, number][]; pct: number; positionSec: number; durationSec: number }) => {
+    if (!student || !uid || !lesson || !enr.data) return;
+    void saveActivity({ uid, courseId: id, lessonId: lesson.id, parentUids: parents, ranges: s.ranges, watchedPct: s.pct, positionSec: s.positionSec, durationSec: s.durationSec }).catch(() => undefined);
+  };
+  const toggle = async () => { if (!lesson || !uid) return; if (!done.has(lesson.id)) { const ok = canComplete(lesson.completionRule, { trackable: trackable && lesson.type === 'video', watchedPct: act.data?.watchedPct ?? 0 }); if (!ok.ok) { toast.error(ok.reason ?? 'Finish the lesson first.'); return; } } try { await setLessonComplete({ uid, courseId: id, lessonId: lesson.id, complete: !done.has(lesson.id), totalLessons: ordered.length }); } catch (e) { toast.error(errorMessage(e)); } };
   const idx = ordered.findIndex((l) => l.id === cur);
-  const emb = lesson?.videoUrl ? embedUrl(lesson.videoUrl) : null;
   return (
     <>
       <PageHeader title={course.data.title} description={course.data.description} actions={enr.data && <div className="w-44"><Progress value={enr.data.progressPct} /><p className="mt-1 text-right text-xs text-muted">{enr.data.progressPct}% complete</p></div>} />
@@ -191,13 +209,15 @@ export function CoursePlayer() {
           {quizzes.data.length > 0 && <div><p className="bg-cream px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">Quizzes</p>{quizzes.data.map((q) => <button key={q.id} onClick={() => setQuiz(q)} className="block w-full px-4 py-2.5 text-left text-sm hover:bg-cream">{String(q.title)}</button>)}</div>}</div></Card>
         <Card>{!lesson ? <EmptyState title="No lessons yet" description="This course has no lessons you can open." /> : (
           <CardBody className="space-y-5"><h2 className="text-xl font-semibold">{lesson.title}</h2>
-            {lesson.type === 'video' && lesson.videoUrl && (emb ? <div className="aspect-video overflow-hidden rounded-md bg-black"><iframe title={lesson.title} src={emb} className="h-full w-full" allow="accelerometer; encrypted-media; picture-in-picture" allowFullScreen loading="lazy" /></div> : <video controls className="w-full rounded-md" src={lesson.videoUrl} />)}
-            {lesson.type === 'pdf' && lesson.fileUrl && <iframe title={lesson.title} src={lesson.fileUrl} className="h-[70vh] w-full rounded-md border border-line" />}
+            {lesson.type === 'video' && lesson.videoUrl && <VideoPlayer key={lesson.id} url={lesson.videoUrl} title={lesson.title} saved={act.data ? { ranges: act.data.ranges, positionSec: act.data.positionSec } : undefined} onProgress={record} />}
+            {lesson.type === 'pdf' && lesson.fileUrl && <PresentationViewer url={lesson.fileUrl} title={lesson.title} />}
+            {lesson.type === 'presentation' && (lesson.resourceId ? <ResourceViewer resourceId={lesson.resourceId} fallbackTitle={lesson.title} /> : lesson.slidesUrl && googleSlidesEmbed(lesson.slidesUrl) ? <PresentationViewer url={lesson.slidesUrl} title={lesson.title} /> : <p className="text-sm text-muted">No presentation has been attached to this lesson yet.</p>)}
             {lesson.type === 'file' && lesson.fileUrl && <a href={lesson.fileUrl} target="_blank" rel="noopener noreferrer"><Button variant="outline">Download material</Button></a>}
             {lesson.content && (/<\/?[a-z][\s\S]*>/i.test(lesson.content) ? <Rich html={lesson.content} /> : <pre className="whitespace-pre-wrap font-sans text-[15px] leading-7">{lesson.content}</pre>)}
             {(lesson.attachments ?? []).length > 0 && <div><p className="mb-2 text-sm font-medium">Attachments</p><ul className="space-y-1">{lesson.attachments!.map((a) => <li key={a.url}><a className="text-sm text-forest-500 underline" href={a.url} target="_blank" rel="noopener noreferrer">{a.name}</a></li>)}</ul></div>}
             <div className="flex flex-wrap justify-between gap-2 border-t border-line pt-4"><Button variant="outline" disabled={idx <= 0} onClick={() => setCur(ordered[idx - 1]!.id)}>Previous</Button>
               {student && enr.data && <Button variant={done.has(lesson.id) ? 'outline' : 'gold'} onClick={() => void toggle()}>{done.has(lesson.id) ? 'Mark as not complete' : 'Mark complete'}</Button>}
+              {student && enr.data && !done.has(lesson.id) && lesson.completionRule === 'watch' && trackable && <p className="basis-full text-xs text-muted">This lesson is completed after you watch 90% of the video (watched so far: {act.data?.watchedPct ?? 0}%).</p>}
               <Button disabled={idx >= ordered.length - 1} onClick={() => setCur(ordered[idx + 1]!.id)}>Next</Button></div></CardBody>)}</Card>
       </div>
       {quiz && <QuizTake quiz={quiz} onClose={() => setQuiz(null)} />}
