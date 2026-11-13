@@ -63,6 +63,9 @@ export function VideoPlayer({ url, title, saved, onProgress }: { url: string; ti
   const cb = useRef(onProgress); cb.current = onProgress;
   useEffect(() => { ranges.current = unpackRanges(saved?.ranges); }, [saved?.ranges]);
   if (!parsed) return <p className="text-sm text-danger">This video link is not supported. Use a YouTube, Vimeo, Google Drive or direct https .mp4/.webm link.</p>;
+  if (parsed.provider === 'link') {
+    return <div className="space-y-2 rounded-md border border-line bg-cream p-4 text-sm"><a href={parsed.watchUrl} target="_blank" rel="noopener noreferrer"><Button><ExternalLink className="h-4 w-4" /> Watch on {parsed.label}</Button></a><p className="text-xs text-muted">This video opens on its own website, so progress cannot be tracked. Confirm with “Mark complete” once you have watched it.</p></div>;
+  }
   if (parsed.provider !== 'direct') {
     return (
       <div className="space-y-2">
