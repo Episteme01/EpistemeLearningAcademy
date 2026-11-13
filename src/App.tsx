@@ -31,6 +31,9 @@ import { NoticesPage } from '@/features/notices/NoticesPage';
 import { AnalyticsPage } from '@/features/analytics/AnalyticsPage';
 import { IslamicPage } from '@/features/Islamic/IslamicPage';
 import { CurriculumDetail, CurriculumList } from '@/features/curriculum/Curriculum';
+import { LessonList, LessonPage } from '@/features/lessons/Lessons';
+import { PresentationsPage } from '@/features/learning/Presentations';
+import { MonitorPage } from '@/features/learning/Monitor';
 import { SpotlightPage } from '@/features/spotlight/Spotlight';
 import { PlayerProvider } from '@/features/Islamic/player';
 import { AlarmEngine } from '@/features/Islamic/alarms';
@@ -83,6 +86,10 @@ export function App() {
         <Route path="cms/categories" element={guard('/app/cms/categories', <Cms.CmsCategories />)} />
         <Route path="lms/curriculum" element={guard('/app/lms/curriculum', <CurriculumList />)} />
         <Route path="lms/curriculum/:id" element={guard('/app/lms/curriculum', <CurriculumDetail />)} />
+        <Route path="lms/presentations" element={guard('/app/lms/presentations', <PresentationsPage />)} />
+        <Route path="lms/monitor" element={guard('/app/lms/monitor', <MonitorPage />)} />
+        <Route path="lms/lessons" element={guard('/app/lms/lessons', <LessonList />)} />
+        <Route path="lms/lessons/:id" element={guard('/app/lms/lessons', <LessonPage />)} />
         <Route path="cms/spotlight" element={guard('/app/cms/spotlight', <Cms.CmsSpotlight />)} />
         <Route path="cms/islamic" element={guard('/app/cms/islamic', <Cms.CmsIslamic />)} />
         <Route path="cms/announcements" element={guard('/app/cms/announcements', <Cms.CmsAnnouncements />)} />
