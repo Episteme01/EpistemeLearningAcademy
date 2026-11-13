@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExternalLink, Headphones, Play } from 'lucide-react';
+import { Download, ExternalLink, Headphones, Play, X } from 'lucide-react';
+import { attachmentUrl, safeFileName } from '@/lib/imageDownload';
 import { cn, fmtDate } from '@/lib/utils';
 import * as api from './api';
 import { useCmsType, type CmsItem } from './cms';
@@ -32,7 +33,9 @@ export function Dashboard({ go }: { go: (tab: string) => void }) {
   const times = useData(() => api.prayerTimes(place.lat, place.lon, 3, new Date()));
   const verse = useData(() => api.ayahByNumber(ayahOfDay(new Date())));
   const hadith = useData(() => api.nawawiHadith(dailyIndex(new Date(), api.NAWAWI_COUNT) + 1));
+  const [preview, setPreview] = useState<number | null>(null);
   const news = useCmsType('news'); const gallery = useCmsType('gallery'); const khutbah = useCmsType('khutbah'); const videos = useCmsType('video');
+  const pics = gallery.items.filter((g) => !!g.imageUrl);
   const [yy, mm, dd] = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(now).split('-').map(Number);
   const h = hijriOf(new Date(Date.UTC(yy, mm - 1, dd)));
   const nx = times.data ? nextPrayer(times.data.timings, minutesInZone(now, TZ)) : null;
@@ -45,7 +48,8 @@ export function Dashboard({ go }: { go: (tab: string) => void }) {
         {nx && <p className="mt-3 rounded-full bg-white/10 px-4 py-2 text-sm">Next prayer in Ilorin: <b>{nx.name}</b> in {fmtCountdown(nx.inMin)}</p>}
         <button className="mt-3 text-xs underline" onClick={() => go('prayer')}>All prayer times</button>
       </section>
-      {gallery.items.length > 0 && <section aria-label="Pictures" className="flex snap-x gap-3 overflow-x-auto pb-1">{gallery.items.map((g) => g.imageUrl && <figure key={g.id} className="w-64 shrink-0 snap-start overflow-hidden rounded-xl border border-line bg-white"><img src={g.imageUrl} alt={g.title} loading="lazy" className="h-40 w-full object-cover" /><figcaption className="p-2 text-xs text-ink/70">{g.title}</figcaption></figure>)}</section>}
+      {pics.length > 0 && <section aria-label="Pictures" className="flex snap-x gap-3 overflow-x-auto pb-1">{pics.map((g, k) => <figure key={g.id} className="relative w-64 shrink-0 snap-start overflow-hidden rounded-xl border border-line bg-white"><button type="button" onClick={() => setPreview(k)} aria-label={`Preview picture: ${g.title}`} className="block w-full"><img src={g.imageUrl} alt={g.title} loading="lazy" className="h-40 w-full object-cover" /></button><figcaption className="flex items-start justify-between gap-2 p-2 text-xs text-ink/70"><span>{g.title}</span><button type="button" onClick={() => void saveImage(g.imageUrl!, g.title)} aria-label={`Download picture: ${g.title}`} className="shrink-0 rounded p-1 text-forest-700 hover:bg-forest-50"><Download className="h-4 w-4" /></button></figcaption></figure>)}</section>}
+      {preview !== null && <PictureLightbox items={pics} start={preview} onClose={() => setPreview(null)} />}
       <section className={card}>
         <h3 className="font-heading text-lg text-forest-700">Verse of the day</h3>
         {verse.error && <p className="text-sm text-ink/60">Could not load today’s verse.</p>}
@@ -95,14 +99,72 @@ export function Khutbah() {
 }
 
 /* ------------------------------------------------------------------ Videos */
+export const VIDEO_CATEGORIES = [
+  { value: 'quran', label: 'Qur’an' }, { value: 'seerah', label: 'Stories (Seerah)' }, { value: 'khutbah', label: 'Admonitions (Khutbah)' },
+  { value: 'kids', label: 'Videos for Kids' }, { value: 'other', label: 'Other Videos' },
+] as const;
+/** Older videos have no category: they stay visible, under "All" and "Other Videos". Nothing in the database is changed. */
+export const videoCategory = (i: { category?: string }): string => (VIDEO_CATEGORIES.some((c) => c.value === i.category) ? (i.category as string) : 'other');
+
 export function Videos() {
   const { items, loading, error } = useCmsType('video');
+  const [cat, setCat] = useState('all');
+  const shown = items.filter((v) => cat === 'all' || videoCategory(v) === cat);
+  const count = (c: string) => items.filter((v) => videoCategory(v) === c).length;
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Video categories">
+        {[{ value: 'all', label: 'All' }, ...VIDEO_CATEGORIES].map((c) => <button key={c.value} type="button" aria-pressed={cat === c.value} onClick={() => setCat(c.value)} className={cn(btn, cat === c.value && 'bg-forest-700 text-white hover:bg-forest-700')}>{c.label}{!loading && !error && <span className="ml-1 opacity-70">({c.value === 'all' ? items.length : count(c.value)})</span>}</button>)}
+      </div>
       {loading && <p className="py-6 text-center text-sm text-ink/60">Loading…</p>}
       {error && <p className={cn(card, 'text-center text-sm')}>Videos could not be loaded.</p>}
       {!loading && !error && items.length === 0 && <p className={cn(card, 'text-center text-sm')}>No videos yet. Editors add admonitions and lectures as YouTube links from the website admin area.</p>}
-      {items.map((v) => <article key={v.id} className={card}><Embed url={v.videoUrl ?? ''} title={v.title} /><h3 className="mt-3 font-medium">{v.title}</h3>{v.body && <p className="mt-1 text-sm text-ink/75">{v.body}</p>}<div className="mt-2 flex items-center gap-3 text-xs text-ink/55">{v.source && <span>{v.source}</span>}<ShareButton text={v.title} path={v.videoUrl?.startsWith('http') ? v.videoUrl : '/islamic?tab=videos'} /></div></article>)}
+      {!loading && !error && items.length > 0 && shown.length === 0 && <p className={cn(card, 'text-center text-sm')}>No videos in this category yet.</p>}
+      {shown.map((v) => <article key={v.id} className={card}><Embed url={v.videoUrl ?? ''} title={v.title} /><h3 className="mt-3 font-medium">{v.title}</h3>{v.body && <p className="mt-1 text-sm text-ink/75">{v.body}</p>}<div className="mt-2 flex items-center gap-3 text-xs text-ink/55">{v.source && <span>{v.source}</span>}<ShareButton text={v.title} path={v.videoUrl?.startsWith('http') ? v.videoUrl : '/islamic?tab=videos'} /></div></article>)}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Picture preview + download */
+async function saveImage(url: string, title: string): Promise<void> {
+  const name = safeFileName(title, url);
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error('fetch');
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = href; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  } catch {
+    // the host does not allow direct fetching: let Cloudinary force the download, otherwise open the picture so it can be saved
+    const a = document.createElement('a'); a.href = attachmentUrl(url) ?? url; a.download = name; a.target = '_blank'; a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click(); a.remove();
+  }
+}
+export function PictureLightbox({ items, start, onClose }: { items: CmsItem[]; start: number; onClose: () => void }) {
+  const [i, setI] = useState(start);
+  const n = items.length; const it = items[i];
+  useEffect(() => {
+    const prev = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); else if (e.key === 'ArrowRight') setI((x) => (x + 1) % n); else if (e.key === 'ArrowLeft') setI((x) => (x - 1 + n) % n); };
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('keydown', key); document.body.style.overflow = prev; };
+  }, [n, onClose]);
+  if (!it?.imageUrl) return null;
+  return (
+    <div role="dialog" aria-modal="true" aria-label={it.title} className="fixed inset-0 z-[80] flex flex-col bg-black/95 text-white">
+      <div className="flex items-center justify-between gap-2 p-3">
+        <span className="text-xs text-white/70">{i + 1} / {n}</span>
+        <span className="flex items-center gap-2">
+          <button type="button" onClick={() => void saveImage(it.imageUrl!, it.title)} className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-2 text-sm hover:bg-white/25"><Download className="h-4 w-4" />Download</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-full bg-white/15 p-2 hover:bg-white/25"><X className="h-5 w-5" /></button>
+        </span>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center gap-2 px-2" onClick={onClose}>
+        {n > 1 && <button type="button" aria-label="Previous picture" onClick={(e) => { e.stopPropagation(); setI((x) => (x - 1 + n) % n); }} className="rounded-full bg-white/15 p-3 hover:bg-white/25">‹</button>}
+        <img src={it.imageUrl} alt={it.title} onClick={(e) => e.stopPropagation()} className="max-h-full max-w-full rounded-lg object-contain" decoding="async" />
+        {n > 1 && <button type="button" aria-label="Next picture" onClick={(e) => { e.stopPropagation(); setI((x) => (x + 1) % n); }} className="rounded-full bg-white/15 p-3 hover:bg-white/25">›</button>}
+      </div>
+      <p className="p-3 text-center text-sm">{it.title}</p>
     </div>
   );
 }

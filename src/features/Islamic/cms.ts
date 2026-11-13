@@ -5,6 +5,8 @@ import { toDate } from '@/lib/utils';
 
 export interface CmsItem {
   id: string; type: string; title: string; arabic?: string; body?: string; source?: string;
+  /** videos only: quran | seerah | khutbah | kids | other. Missing (older items) = other. */
+  category?: string;
   imageUrl?: string; videoUrl?: string; audioUrl?: string; link?: string; platform?: string; itemDate?: unknown; createdAt?: unknown;
 }
 let cached: Promise<CmsItem[]> | null = null;
