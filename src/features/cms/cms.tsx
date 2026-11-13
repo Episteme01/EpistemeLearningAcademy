@@ -22,7 +22,7 @@ import { Rich } from '@/features/public/pages';
 import { DEFAULT_NAV } from '@/features/public/content';
 import { SITE_DEFAULTS } from '@/features/public/PublicLayout';
 import legacyPosts from '@/data/legacyPosts.json';
-import { spotlightSchema } from '@/lib/spotlight';
+import { SPOTLIGHT_CATEGORIES, categoryLabel, categoryOf, spotlightSchema } from '@/lib/spotlight';
 
 type Row = Record<string, unknown> & { id: string };
 const STATUS = [{ value: 'draft', label: 'Draft' }, { value: 'review', label: 'In review' }, { value: 'published', label: 'Published' }];
@@ -167,21 +167,22 @@ export function CmsAnnouncements() {
 export function CmsSpotlight() {
   const T = (v: string, l: string) => ({ value: v, label: l });
   return <CrudPage config={{
-    collection: C.socialPosts, singular: 'Spotlight post', plural: 'Social Spotlight', description: 'Posts shown in “From the ELA Community” on the homepage and /spotlight. Videos are links only (YouTube, Vimeo, Google Drive or a direct .mp4/.webm file) and load only when a visitor taps play.', auditActions: true, canDelete: true,
+    collection: C.socialPosts, singular: 'Spotlight post', plural: 'Social Spotlight', description: 'Posts shown in “From the ELA Community” on the homepage and /spotlight. Videos are links only (any https link) and load only when a visitor taps play.', auditActions: true, canDelete: true,
     fields: [
       { name: 'type', label: 'Post type', type: 'select', required: true, defaultValue: 'image', options: [T('image', 'Image'), T('video', 'Video'), T('text', 'Text')] },
+      { name: 'category', label: 'Category', type: 'select', defaultValue: 'other', options: SPOTLIGHT_CATEGORIES.map((x) => T(x.value, x.label)), hint: 'Visitors can filter the Spotlight page by category. Posts with no category show under “Other”.' },
       { name: 'title', label: 'Title', type: 'text', required: true, maxLength: 140 },
       { name: 'caption', label: 'Short caption', type: 'textarea', maxLength: 300, hint: 'Shown on the card and under the post.' },
       { name: 'imageUrl', label: 'Picture (image posts)', type: 'image' },
       { name: 'thumbnailUrl', label: 'Custom thumbnail (recommended for videos)', type: 'image' },
-      { name: 'videoUrl', label: 'Video link (video posts)', type: 'url', hint: 'YouTube (unlisted is fine), Vimeo, Google Drive file link, or direct https .mp4/.webm.' },
+      { name: 'videoUrl', label: 'Video link (video posts)', type: 'url', hint: 'Any https video link. YouTube, Vimeo, Google Drive, Dailymotion, Facebook, Instagram, TikTok, Streamable, Loom and direct .mp4/.webm/.mov files play on the page; any other site opens on its own website.' },
       { name: 'body', label: 'Full text (optional for image/video, required for text posts)', type: 'richtext' },
       { name: 'publishedAt', label: 'Publication date', type: 'datetime', hint: 'A future date keeps the post hidden until then.' },
       { name: 'order', label: 'Display order (1 = first)', type: 'number', min: 0 },
       { name: 'featured', label: 'Feature this post (shown first)', type: 'checkbox' },
       { name: 'status', label: 'Status', type: 'select', required: true, defaultValue: 'draft', options: [{ value: 'draft', label: 'Draft (hidden)' }, { value: 'published', label: 'Published' }] },
     ],
-    columns: [{ key: 't', header: 'Title', primary: true, cell: (r: Row & { title: string }) => <span className="font-medium">{r.title}</span> }, { key: 'ty', header: 'Type', cell: (r: Row & { type?: string }) => r.type }, { key: 'f', header: 'Featured', cell: (r: Row & { featured?: boolean }) => (r.featured ? 'Yes' : '') }, { key: 's', header: 'Status', cell: (r: Row & { status: string }) => <StatusBadge status={r.status} /> }],
+    columns: [{ key: 't', header: 'Title', primary: true, cell: (r: Row & { title: string }) => <span className="font-medium">{r.title}</span> }, { key: 'ty', header: 'Type', cell: (r: Row & { type?: string }) => r.type }, { key: 'cat', header: 'Category', cell: (r: Row & { category?: string }) => categoryLabel(categoryOf(r)) }, { key: 'f', header: 'Featured', cell: (r: Row & { featured?: boolean }) => (r.featured ? 'Yes' : '') }, { key: 's', header: 'Status', cell: (r: Row & { status: string }) => <StatusBadge status={r.status} /> }],
     searchKeys: ['title', 'caption'],
     sort: (a, b) => (Number(!!b.featured) - Number(!!a.featured)) || ((a.order as number ?? 999) - (b.order as number ?? 999)) || ((toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0)),
     beforeSave: (p) => {
@@ -198,6 +199,7 @@ export function CmsIslamic() {
     collection: C.islamicContent, singular: 'Islamic item', plural: 'Islamic content', description: 'Everything on the public /islamic page and /community page that is not fetched live: khutbahs, videos, news, pictures, social posts, Tajweed lessons, extra hadith and adhkar. Always give a source for religious text.', auditActions: true,
     fields: [
       { name: 'type', label: 'Section', type: 'select', required: true, defaultValue: 'news', options: [T('news', 'Islamic news / update'), T('khutbah', 'Friday khutbah'), T('video', 'Video (admonition, lecture)'), T('gallery', 'Picture (dashboard slider)'), T('tajweed', 'Tajweed lesson'), T('hadith', 'Hadith'), T('adhkar', 'Adhkar / dua')] },
+      { name: 'category', label: 'Video category (videos only)', type: 'select', options: [T('quran', 'Qur’an'), T('seerah', 'Stories (Seerah)'), T('khutbah', 'Admonitions (Khutbah)'), T('kids', 'Videos for Kids'), T('other', 'Other Videos')], hint: 'Only used for items in the “Video” section. Videos with no category appear under “Other Videos”.' },
       { name: 'title', label: 'Title / caption', type: 'text', required: true },
       { name: 'itemDate', label: 'Date (khutbah date, news date)', type: 'date' },
       { name: 'arabic', label: 'Arabic text (khutbah, hadith, dua)', type: 'textarea' },
@@ -210,7 +212,7 @@ export function CmsIslamic() {
       { name: 'platform', label: 'Platform (social posts)', type: 'select', options: [T('youtube', 'YouTube'), T('facebook', 'Facebook'), T('instagram', 'Instagram'), T('x', 'X'), T('tiktok', 'TikTok'), T('other', 'Other')] },
       { name: 'status', label: 'Status', type: 'select', required: true, defaultValue: 'draft', options: [{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }] },
     ],
-    columns: [{ key: 't', header: 'Title', primary: true, cell: (r: Row & { title: string }) => <span className="font-medium">{r.title}</span> }, { key: 'ty', header: 'Section', cell: (r: Row & { type?: string }) => r.type }, { key: 's', header: 'Status', cell: (r: Row & { status: string }) => <StatusBadge status={r.status} /> }],
+    columns: [{ key: 't', header: 'Title', primary: true, cell: (r: Row & { title: string }) => <span className="font-medium">{r.title}</span> }, { key: 'ty', header: 'Section', cell: (r: Row & { type?: string; category?: string }) => (r.type === 'video' ? `video · ${r.category || 'other'}` : r.type) }, { key: 's', header: 'Status', cell: (r: Row & { status: string }) => <StatusBadge status={r.status} /> }],
     searchKeys: ['title', 'body'], sort: (a, b) => (toDate(b.createdAt)?.getTime() ?? 0) - (toDate(a.createdAt)?.getTime() ?? 0),
   } as CrudConfig<Row & { title: string }>} />;
 }
