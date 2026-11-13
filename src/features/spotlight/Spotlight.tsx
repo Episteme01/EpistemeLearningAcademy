@@ -4,7 +4,7 @@ import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { ArrowRight, ChevronDown, ChevronUp, FileText, Image as ImageIcon, Play, X } from 'lucide-react';
 import { db } from '@/config/firebase';
 import { sanitizeHtml, stripHtml } from '@/lib/sanitize';
-import { cardImage, homepagePosts, parseVideoUrl, stepIndex, swipeDir, visiblePosts, type SpotlightPost } from '@/lib/spotlight';
+import { cardImage, categoriesInUse, categoryLabel, categoryOf, homepagePosts, parseVideoUrl, stepIndex, swipeDir, visiblePosts, type SpotlightPost } from '@/lib/spotlight';
 import { toDate } from '@/lib/utils';
 import { ShareButton } from '@/features/Islamic/share';
 
@@ -13,7 +13,7 @@ let cache: { at: number; p: Promise<SpotlightPost[]> } | null = null;
 function loadPosts(): Promise<SpotlightPost[]> {
   if (!cache || Date.now() - cache.at > 5 * 60_000) {
     const p = getDocs(query(collection(db(), 'socialPosts'), where('status', '==', 'published'), limit(120)))
-      .then((s) => s.docs.map((d) => { const x = d.data(); return { id: d.id, type: x.type, title: String(x.title ?? ''), caption: x.caption, body: x.body, thumbnailUrl: x.thumbnailUrl, imageUrl: x.imageUrl, videoUrl: x.videoUrl, status: x.status, featured: !!x.featured, order: typeof x.order === 'number' ? x.order : undefined, publishedAtMs: toDate(x.publishedAt)?.getTime() ?? 0 } as SpotlightPost; }))
+      .then((s) => s.docs.map((d) => { const x = d.data(); return { id: d.id, type: x.type, category: typeof x.category === 'string' ? x.category : undefined, title: String(x.title ?? ''), caption: x.caption, body: x.body, thumbnailUrl: x.thumbnailUrl, imageUrl: x.imageUrl, videoUrl: x.videoUrl, status: x.status, featured: !!x.featured, order: typeof x.order === 'number' ? x.order : undefined, publishedAtMs: toDate(x.publishedAt)?.getTime() ?? 0 } as SpotlightPost; }))
       .catch((e) => { cache = null; throw e; });
     cache = { at: Date.now(), p };
   }
@@ -36,6 +36,7 @@ function Card({ p, onOpen, tall = true }: { p: SpotlightPost; onOpen: () => void
       {img ? <img src={img} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover motion-safe:transition-transform motion-safe:duration-300 group-hover:scale-[1.03]" /> : <span className="absolute inset-0 bg-gradient-to-b from-forest-600 to-forest-800" />}
       <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/75 to-transparent" />
       <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white"><TypeIcon t={p.type} />{TYPE_LABEL[p.type]}</span>
+      {p.category && <span className="absolute right-3 top-3 max-w-[60%] truncate rounded-full bg-gold-500/90 px-2 py-0.5 text-[11px] font-medium text-forest-900">{categoryLabel(categoryOf(p))}</span>}
       {p.type === 'video' && <span className="absolute left-1/2 top-1/2 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-forest-700"><Play className="h-5 w-5 translate-x-0.5" /></span>}
       <span className="absolute inset-x-0 bottom-0 p-3 text-white">
         <span className="block text-sm font-semibold leading-snug">{p.title}</span>
@@ -54,6 +55,16 @@ function VideoPlayer({ post }: { post: SpotlightPost }) {
   useEffect(() => { if (!playing || v?.provider === 'direct') return; const t = setTimeout(() => { if (!loaded.current) setSlow(true); }, 12000); return () => clearTimeout(t); }, [playing, v]);
   const img = cardImage(post);
   if (!v) return <p className="rounded bg-white/10 p-4 text-sm text-white">This video link is not valid, so it cannot be played here.</p>;
+  if (v.provider === 'link') {
+    // any other website: never framed, opened on its own site
+    return (
+      <div className="relative flex aspect-video w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-lg bg-black/60 p-4 text-center">
+        {img && <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
+        <a href={v.watchUrl} target="_blank" rel="noopener noreferrer" className="relative inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 font-medium text-forest-700"><Play className="h-5 w-5" />Watch on {v.label}</a>
+        <p className="relative text-xs text-white/70">This video opens on its own website.</p>
+      </div>
+    );
+  }
   return (
     <div className="w-full">
       <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
@@ -137,17 +148,20 @@ export function SpotlightPage() {
   const [params, setParams] = useSearchParams();
   const [f, setF] = useState<(typeof FILTERS)[number][0]>('all');
   const [count, setCount] = useState(PAGE);
-  const list = useMemo(() => posts.filter((p) => f === 'all' || p.type === f), [posts, f]);
+  const [cat, setCat] = useState('all');
+  const cats = useMemo(() => categoriesInUse(posts), [posts]);
+  const list = useMemo(() => posts.filter((p) => (f === 'all' || p.type === f) && (cat === 'all' || categoryOf(p) === cat)), [posts, f, cat]);
   const wanted = params.get('post');
   const open = wanted ? Math.max(-1, list.findIndex((p) => p.id === wanted)) : -1;
   useEffect(() => { document.title = 'From the ELA Community — Episteme Learning Academy'; }, []);
-  useEffect(() => { if (wanted && !loading && posts.length && list.findIndex((p) => p.id === wanted) < 0) setF('all'); }, [wanted, loading, posts, list]);
+  useEffect(() => { if (wanted && !loading && posts.length && list.findIndex((p) => p.id === wanted) < 0) { setF('all'); setCat('all'); } }, [wanted, loading, posts, list]);
   const close = useCallback(() => setParams({}, { replace: true }), [setParams]);
   return (
     <div className="bg-cream">
       <header className="bg-forest-700 py-10 text-center text-white"><h1 className="font-heading text-3xl !text-white">From the ELA Community</h1><p className="mt-2 text-sm text-gold-300">Ideas, inspiration, learning and moments from our educational community.</p></header>
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20 md:px-6">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter posts">{FILTERS.map(([id, label]) => <button key={id} role="tab" aria-selected={f === id} onClick={() => { setF(id); setCount(PAGE); }} className={`rounded-full border px-4 py-2 text-sm font-medium ${f === id ? 'border-forest-700 bg-forest-700 text-white' : 'border-line bg-white text-forest-700'}`}>{label}</button>)}</div>
+        {cats.length > 1 && <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter by category">{[{ value: 'all', label: 'All categories', count: posts.length }, ...cats].map((c) => <button key={c.value} type="button" aria-pressed={cat === c.value} onClick={() => { setCat(c.value); setCount(PAGE); }} className={`rounded-full border px-3 py-1.5 text-xs font-medium ${cat === c.value ? 'border-gold-500 bg-gold-500 text-forest-900' : 'border-line bg-white text-forest-700'}`}>{c.label} <span className="opacity-70">({c.count})</span></button>)}</div>}
         {loading && <p className="py-10 text-center text-sm text-muted">Loading…</p>}
         {error && <p className="py-10 text-center text-sm text-muted">Posts could not be loaded right now. Please try again shortly.</p>}
         {!loading && !error && list.length === 0 && <p className="py-10 text-center text-sm text-muted">Nothing here yet — please check back soon.</p>}
