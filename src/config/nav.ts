@@ -77,6 +77,9 @@ export const NAV: NavItem[] = [
   // ---- LMS
   { label: 'Overview', to: '/app/lms', icon: Library, platform: 'lms', roles: [...ACADEMIC, 'director', 'student', 'parent'], end: true },
   { label: 'Curriculum', to: '/app/lms/curriculum', icon: ListChecks, platform: 'lms', roles: [...ACADEMIC, 'director'], group: 'Teach' },
+  { label: 'Lessons', to: '/app/lms/lessons', icon: BookOpen, platform: 'lms', roles: [...ACADEMIC, 'director', 'student'], group: 'Teach' },
+  { label: 'Presentations', to: '/app/lms/presentations', icon: FileText, platform: 'lms', roles: [...ACADEMIC, 'director', 'student', 'parent'], group: 'Teach' },
+  { label: 'Learning monitor', to: '/app/lms/monitor', icon: LineChart, platform: 'lms', roles: [...ACADEMIC, 'parent'], group: 'Teach' },
   { label: 'Courses', to: '/app/lms/courses', icon: BookOpen, platform: 'lms', roles: ACADEMIC, group: 'Teach' },
   { label: 'Notices', to: '/app/notices', icon: Bell, platform: 'home', roles: ['super_admin', 'admin', 'principal', 'director', 'teacher', 'parent', 'student'], group: 'Overview' },
   { label: 'Analytics', to: '/app/analytics', icon: LineChart, platform: 'home', roles: ['super_admin', 'admin', 'principal', 'director', 'teacher'], group: 'Overview' },

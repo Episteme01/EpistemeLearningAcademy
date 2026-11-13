@@ -50,6 +50,10 @@ export const C = {
   curricula: 'curricula',
   curriculumTopics: 'curriculumTopics',
   schemeOfWork: 'schemeOfWork',
+  lessonPlans: 'lessonPlans',
+  lessonGuides: 'lessonGuides',
+  lessonActivity: 'lessonActivity',
+  learningFeedback: 'learningFeedback',
   // Timetable + live classes (Phase 2)
   timetableSeries: 'timetableSeries',
   sessions: 'sessions',
