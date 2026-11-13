@@ -306,7 +306,7 @@ export function LessonPage() {
                 {next.map((to) => <Button key={to} variant={to === 'published' || to === 'approved' ? 'primary' : 'outline'} onClick={() => void move(to)}>{to === 'review' ? 'Send for review' : to === 'draft' ? (l.status === 'review' ? (leader ? 'Return for changes' : 'Withdraw to draft') : 'Back to draft') : to === 'approved' ? (l.status === 'published' ? 'Unpublish (back to approved)' : 'Approve') : to === 'published' ? 'Publish to learners' : to === 'archived' ? 'Archive' : STATUS_LABEL[to]}</Button>)}
               </div>
             )}
-            {l.publishedAt && l.status === 'published' && <p className="text-xs text-muted">Published {toDate(l.publishedAt)?.toLocaleString()}.</p>}
+            {l.status === 'published' && !!l.publishedAt && <p className="text-xs text-muted">Published {toDate(l.publishedAt)?.toLocaleString()}.</p>}
           </CardBody></Card>
         )}
       </div>
