@@ -53,3 +53,12 @@ test('child summary only reflects records', () => {
   assert.equal(s.avgProgress, 50); assert.equal(s.lessonsDone, 5); assert.equal(s.lastActivityMs, 5000); assert.equal(s.submitted, 2); assert.equal(s.marked, 1);
   assert.equal(daysSince(null), null); assert.equal(daysSince(0, 3 * 86_400_000 + 5), 3);
 });
+import { attachmentUrl, safeFileName } from '../src/lib/imageDownload';
+test('picture download helpers', () => {
+  assert.equal(safeFileName('Jumu’ah Mubarak / 2026!', 'https://x.test/a/b.PNG?v=2'), 'Jumuah-Mubarak-2026.png');
+  assert.equal(safeFileName('', 'https://x.test/a/noext'), 'picture.jpg');
+  assert.equal(attachmentUrl('https://res.cloudinary.com/demo/image/upload/v1/a.jpg'), 'https://res.cloudinary.com/demo/image/upload/fl_attachment/v1/a.jpg');
+  assert.equal(attachmentUrl('https://other.com/upload/a.jpg'), null);
+  assert.equal(attachmentUrl('https://res.cloudinary.com/demo/image/upload/fl_attachment/a.jpg'), null);
+  assert.equal(attachmentUrl('nonsense'), null);
+});
