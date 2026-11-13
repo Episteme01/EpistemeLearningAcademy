@@ -46,3 +46,7 @@ Written 12 Nov 2026. Be aware of the one limit that applies to **everything** be
 2. Publish Firestore rules. 3. Deploy/redeploy the Supabase functions listed in B.
 4. Open: home, /islamic (every tab), a blog post + Share, Users & Access (Linked-to column), Staff (link icon), Schedule a class (try a clash).
 5. Throwaway tests: delete a student/parent/invoice; record an advance payment; one Paystack payment.
+
+
+## E. Phases 8–11 addendum (Spotlight, Curriculum, Lessons, Presentations, Video, Parent monitor)
+See `PHASE8_SOCIAL_SPOTLIGHT.md`, `PHASE9_CURRICULUM_STUDIO.md`, `PHASE10_LESSON_STUDIO.md`, `PHASE11_LEARNING.md`, and `FINAL_DELIVERABLES.md` (collections, rules, env vars, checklists, known limits). All were verified by unit tests and type-checking only; none has been run in a browser, the Firestore emulator or against live services.
