@@ -158,6 +158,50 @@ service cloud.firestore {
       allow delete: if isAcademicLeader() || teachesCurriculum(resource.data.curriculumId);
     }
 
+    // ---- Lesson Authoring Studio. Learner-facing content lives in lessonPlans; teacher-only notes live in lessonGuides.
+    function lessonOf(lid) { return get(/databases/$(database)/documents/lessonPlans/$(lid)).data; }
+    match /lessonPlans/{id} {
+      allow read: if isAcademicLeader() || isRole('director')
+        || (isRole('teacher') && (uid() in resource.data.teacherUids || resource.data.status == 'published'))
+        || (isRole('student') && resource.data.status == 'published' && resource.data.get('classId', '') == myClassId());
+      allow create: if (isAcademicLeader() || (isRole('teacher') && uid() in request.resource.data.teacherUids && request.resource.data.authorUid == uid()))
+        && request.resource.data.status == 'draft'
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200;
+      allow update: if isAcademicLeader()
+        || (isRole('teacher') && uid() in resource.data.teacherUids && request.resource.data.authorUid == resource.data.authorUid
+            && request.resource.data.teacherUids == resource.data.teacherUids
+            && ((resource.data.status == 'draft' && request.resource.data.status in ['draft', 'review'])
+                || (resource.data.status == 'review' && request.resource.data.status == 'draft' && onlyChanges(['status', 'updatedAt']))));
+      allow delete: if isAcademicLeader() || (isRole('teacher') && resource.data.authorUid == uid() && resource.data.status == 'draft');
+    }
+    match /lessonGuides/{id} {
+      allow read, write: if isAcademicLeader() || (isRole('teacher') && uid() in lessonOf(id).teacherUids);
+    }
+
+    // ---- Learning activity (video position, viewed lessons) and teacher feedback to parents.
+    // lessonActivity/{uid_lessonId} is written only by the learner and only for a course they are enrolled in.
+    function enrolOf(cid) { return get(/databases/$(database)/documents/courseEnrollments/$(cid + '_' + uid())).data; }
+    function actOk(d) {
+      return d.uid == uid() && d.lessonId is string && d.courseId is string && enrolled(d.courseId)
+        && d.parentUids == enrolOf(d.courseId).get('parentUids', [])
+        && d.watchedPct is number && d.watchedPct >= 0 && d.watchedPct <= 100
+        && d.ranges is list && d.ranges.size() <= 60;
+    }
+    match /lessonActivity/{id} {
+      allow read: if isAcademicStaff() || isRole('director') || isOwnerOf(resource.data) || (signedIn() && uid() in resource.data.parentUids);
+      allow create: if isRole('student') && id == uid() + '_' + request.resource.data.lessonId && actOk(request.resource.data);
+      allow update: if isRole('student') && resource.data.uid == uid() && actOk(request.resource.data);
+      allow delete: if isAcademicLeader();
+    }
+    match /learningFeedback/{id} {
+      allow read: if isAcademicStaff() || isRole('director') || (signedIn() && uid() in resource.data.parentUids);
+      allow create: if isAcademicStaff() && request.resource.data.teacherUid == uid()
+        && request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 1000
+        && request.resource.data.parentUids is list && request.resource.data.parentUids.size() <= 6
+        && request.resource.data.parentUids == get(/databases/$(database)/documents/students/$(request.resource.data.studentId)).data.get('parentUids', []);
+      allow update, delete: if isAcademicLeader() || (isRole('teacher') && resource.data.teacherUid == uid());
+    }
+
     match /socialPosts/{id} {
       allow read: if resource.data.status == 'published' || isAnyStaff();
       allow create, update: if isCmsPublisher()
