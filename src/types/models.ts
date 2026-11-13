@@ -558,6 +558,8 @@ export interface Resource {
 /** Public Social Spotlight post (collection socialPosts). Media are links only; no video is stored in the app. */
 export interface SocialPost {
   type: 'image' | 'video' | 'text';
+  /** see SPOTLIGHT_CATEGORIES in lib/spotlight.ts; missing = 'other' */
+  category?: string;
   title: string; caption?: string;
   /** sanitised rich text (text posts, and the full text of any post) */
   body?: string;
