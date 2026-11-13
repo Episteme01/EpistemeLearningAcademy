@@ -28,3 +28,11 @@ Rules: read if `status == 'published'` or staff; write only CMS publishers. **No
 * Vimeo/Drive videos have no automatic thumbnail: add a custom thumbnail.
 * Whether a given private/unlisted video plays depends on the provider's own sharing settings.
 * The old `social` items in "Islamic content" are no longer shown on `/community` (it now shows Spotlight posts).
+
+## Update: any video link, categories (Nov 2026)
+- **Video links:** any `https://` link is accepted. YouTube, Vimeo, Google Drive, Dailymotion, Facebook, Instagram, TikTok, Streamable and Loom are embedded from their own player; direct `.mp4/.webm/.ogv/.m4v/.mov` files play in the page; **every other site shows a "Watch on <site>" button that opens it in a new tab** (unknown sites are deliberately never framed). Plain `http://` links, links with a username/password and `javascript:`/`data:` are refused. Some sites (private Facebook/Instagram posts, TikTok on some phones) refuse to be embedded; the viewer then offers the open-on-site link.
+- **Categories:** School Events, Academics & Learning, Student Life, Sports & Arts, Islamic & Character, Parents & Community, Announcements, Other (`SPOTLIGHT_CATEGORIES` in `src/lib/spotlight.ts` — edit that list to rename or add). Posts saved before this update have no category and appear as "Other"; nothing in the database is rewritten. The /spotlight page shows category chips (only those in use) on top of the Photos/Videos/Articles filter.
+
+## Update: Islamic portal
+- **Video categories:** Qur'an, Stories (Seerah), Admonitions (Khutbah), Videos for Kids, Other Videos (`category` on `islamicContent` items of section "Video"). Existing videos have no category, so they remain visible under **All** and **Other Videos** and no stored data is touched; open each in Website admin → Islamic content and pick a category to move it.
+- **Dashboard pictures:** tapping a picture opens a full-screen preview (next/previous, Esc to close) with a Download button; each thumbnail also has a download icon. Download fetches the picture and saves it; if the image host blocks that, Cloudinary links use `fl_attachment`, otherwise the picture opens in a new tab to save manually.
