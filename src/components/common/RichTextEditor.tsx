@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Link as LinkIcon, Quote, Eraser, ImageIcon } from 'lucide-react';
+import { Bold, Italic, Underline, Subscript, Superscript, Table as TableIcon, Heading2, Heading3, List, ListOrdered, Link as LinkIcon, Quote, Eraser, ImageIcon } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { cn } from '@/lib/utils';
 
@@ -40,9 +40,22 @@ export function RichTextEditor({ value, onChange, id, invalid }: { value: string
     if (url) cmd('insertImage', url);
   };
 
+  const table = () => {
+    const rows = Math.min(20, Math.max(1, parseInt(window.prompt('Number of rows', '3') ?? '', 10) || 0));
+    const cols = Math.min(8, Math.max(1, parseInt(window.prompt('Number of columns', '3') ?? '', 10) || 0));
+    if (!rows || !cols) return;
+    const cell = (t: string) => `<${t}>&nbsp;</${t}>`;
+    const html = `<table><thead><tr>${Array.from({ length: cols }, () => cell('th')).join('')}</tr></thead><tbody>${Array.from({ length: rows - 1 || 1 }, () => `<tr>${Array.from({ length: cols }, () => cell('td')).join('')}</tr>`).join('')}</tbody></table><p></p>`;
+    cmd('insertHTML', html);
+  };
+  const symbol = (s: string) => { if (s) cmd('insertText', s); };
+
   const tools: { icon: typeof Bold; label: string; run: () => void }[] = [
     { icon: Bold, label: 'Bold', run: () => cmd('bold') },
     { icon: Italic, label: 'Italic', run: () => cmd('italic') },
+    { icon: Underline, label: 'Underline', run: () => cmd('underline') },
+    { icon: Superscript, label: 'Superscript (powers, e.g. x²)', run: () => cmd('superscript') },
+    { icon: Subscript, label: 'Subscript (e.g. H₂O)', run: () => cmd('subscript') },
     { icon: Heading2, label: 'Heading', run: () => cmd('formatBlock', 'h2') },
     { icon: Heading3, label: 'Sub-heading', run: () => cmd('formatBlock', 'h3') },
     { icon: List, label: 'Bulleted list', run: () => cmd('insertUnorderedList') },
@@ -50,6 +63,7 @@ export function RichTextEditor({ value, onChange, id, invalid }: { value: string
     { icon: Quote, label: 'Quote', run: () => cmd('formatBlock', 'blockquote') },
     { icon: LinkIcon, label: 'Insert link', run: link },
     { icon: ImageIcon, label: 'Insert image', run: image },
+    { icon: TableIcon, label: 'Insert table', run: table },
     { icon: Eraser, label: 'Clear formatting', run: () => cmd('removeFormat') },
   ];
 
@@ -62,6 +76,10 @@ export function RichTextEditor({ value, onChange, id, invalid }: { value: string
             <t.icon className="h-4 w-4" />
           </button>
         ))}
+        <select aria-label="Insert a maths symbol" defaultValue="" onChange={(e) => { symbol(e.target.value); e.target.value = ''; }} className="rounded border border-line bg-white px-1 text-sm">
+          <option value="">Σ symbols</option>
+          {['π', '√', '²', '³', '½', '¼', '¾', '±', '×', '÷', '≤', '≥', '≠', '≈', '∞', '∑', '∫', 'α', 'β', 'θ', 'λ', 'Δ', 'Ω', '°', '→', '∴'].map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
       <div
         id={id}
