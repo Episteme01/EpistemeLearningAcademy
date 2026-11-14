@@ -620,7 +620,7 @@ service cloud.firestore {
       allow delete: if schedLeader();
     }
 
-    // Access history (append-only). Link views/clicks are NOT attendance.
+    // Access history (append-only). Opening the meeting link also records attendance automatically (see attLinkCreate).
     match /sessionAccess/{id} {
       allow create: if signedIn() && request.resource.data.uid == uid() && request.resource.data.at == request.time
                     && request.resource.data.keys().hasOnly(['sessionId', 'teacherUid', 'uid', 'name', 'role', 'action', 'at'])
@@ -634,7 +634,8 @@ service cloud.firestore {
 
     // ------------------------------------------------ live-class attendance (Phase 3)
     // Doc id = {sessionId}_{studentUid}: one record per learner per session, so duplicates are impossible.
-    // A learner can only CREATE their own record, as 'pending_verification', stamped with the SERVER clock,
+    // A learner can only CREATE their own record, either as 'pending_verification' (manual check-in) or as an automatic
+    // 'present' record when they open the meeting link (method 'link_click'), stamped with the SERVER clock,
     // inside [start - 15 min, end]. They can never edit it, never touch another learner's, and never mark
     // themselves present/absent/late. Early / on-time / late is decided from checkInAt vs the scheduled start.
     // Only the session's teacher or a leader can verify, mark or correct, and every change needs a log entry
@@ -653,6 +654,27 @@ service cloud.firestore {
         && request.time >= s.startAt - duration.value(15, 'm') && request.time <= s.endAt
         && d.checkInAt == request.time
         && d.status == 'pending_verification' && d.method == 'self_checkin' && d.verified == false
+        && d.teacherUid == s.teacherUid && d.seriesId == s.seriesId && d.monthKey == s.monthKey
+        && d.scheduledStart == s.startAt && d.scheduledEnd == s.endAt
+        && d.parentUids is list && d.parentUids.size() <= 10 && d.parentUids.hasOnly(s.parentUids)
+        && str(d.studentName, 120);
+    }
+
+    // Automatic attendance: the learner opens the meeting link from the website. The record is final
+    // (present, verified by the system). Timing is left empty and derived from the server-stamped checkInAt (early / on time / late),
+    // so a learner can never choose it and clock skew cannot reject a legitimate join.
+    function attLinkCreate(id) {
+      let d = request.resource.data;
+      let s = sess(d.sessionId);
+      return signedIn() && d.keys().hasOnly(attKeys())
+        && id == d.sessionId + '_' + uid()
+        && d.studentUid == uid() && uid() in s.studentUids
+        && s.status == 'scheduled'
+        && request.time >= s.startAt - duration.value(15, 'm') && request.time <= s.endAt
+        && d.checkInAt == request.time
+        && d.status == 'present' && d.method == 'link_click' && d.verified == true
+        && d.verifiedBy == 'system' && d.verifiedByName == 'Meeting link (automatic)'
+        && d.get('timing', '') == ''
         && d.teacherUid == s.teacherUid && d.seriesId == s.seriesId && d.monthKey == s.monthKey
         && d.scheduledStart == s.startAt && d.scheduledEnd == s.endAt
         && d.parentUids is list && d.parentUids.size() <= 10 && d.parentUids.hasOnly(s.parentUids)
@@ -693,7 +715,7 @@ service cloud.firestore {
     match /sessionAttendance/{id} {
       // Queries must carry the matching equality: studentUid / parentUids array-contains / teacherUid.
       allow read: if schedViewer() || (signedIn() && (resource.data.studentUid == uid() || uid() in resource.data.parentUids || resource.data.teacherUid == uid()));
-      allow create: if attSelfCreate(id) || attStaffCreate(id);
+      allow create: if attSelfCreate(id) || attLinkCreate(id) || attStaffCreate(id);
       allow update: if attStaffUpdate();
       allow delete: if false;
     }
