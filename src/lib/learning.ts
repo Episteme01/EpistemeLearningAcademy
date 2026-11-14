@@ -24,6 +24,26 @@ export function presentationKind(x: { url?: string; fileName?: string; contentTy
   return 'other';
 }
 
+/**
+ * PowerPoint files cannot be drawn by a browser. Microsoft's free Office viewer can, but it must be able to download the file,
+ * so only a public https link qualifies (never localhost, a private address or a non-https link).
+ */
+export function officeViewerSrc(url: string): string | null {
+  let u: URL;
+  try { u = new URL((url || '').trim()); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  const h = u.hostname.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.local') || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h) || h === '[::1]') return null;
+  return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(u.toString())}`;
+}
+
+/** Canvas scale for a PDF page: 100% means "fit the page width to the viewer". */
+export function fitScale(containerWidth: number, pageWidth: number, zoomPct: number): number {
+  if (!(containerWidth > 0) || !(pageWidth > 0)) return 1;
+  const s = (containerWidth / pageWidth) * (zoomPct / 100);
+  return Math.min(6, Math.max(0.2, s));
+}
+
 export const ZOOMS = [50, 75, 100, 125, 150, 200] as const;
 export function stepZoom(z: number, dir: 1 | -1): number {
   const i = ZOOMS.findIndex((v) => v >= z);
