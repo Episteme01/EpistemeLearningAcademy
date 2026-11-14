@@ -10,7 +10,7 @@
 - **Cancel** (one / future / all, with a mandatory reason) and **reschedule** (one session; the original time is kept in `rescheduledFrom`). Nothing is deleted; attendees get in-app notifications; every action is audited.
 - **Individual live-class access.** The meeting URL, ID and passcode are in a separate document (`sessionLinks/{sessionId}`). The database releases it only to Super Admin/Admin/Principal, the session's teacher, and — for the invited audience — only while the class is *scheduled* and between **15 minutes before start and 30 minutes after end** (server clock). Hiding it in the interface is not what protects it.
 - **Audience**: add a whole class, untick individuals to exclude them, add individuals from other classes. Linked parents/guardians are included automatically from the students' `parentUids`.
-- **Access history** (`sessionAccess`, append-only): who viewed or clicked the link, shown to the teacher and leaders. **This is not attendance** — Phase 3 will add verified check-in.
+- **Access history** (`sessionAccess`, append-only): who viewed or clicked the link, shown to the teacher and leaders. Opening the link as an invited learner also records attendance automatically (see PHASE3_ATTENDANCE.md).
 - **Time zones**: stored as UTC; wall-clock input is converted from Africa/Lagos; viewers can switch to their own device time zone.
 - The old general **Live classes** list (visible to every signed-in user) is replaced; its collection `liveClasses` is now staff-only and kept only as an archive.
 
