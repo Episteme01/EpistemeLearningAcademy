@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MathText } from '@/components/common/MathText';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { where } from 'firebase/firestore';
 import { Check, Clock, Flag } from 'lucide-react';
@@ -151,14 +152,14 @@ export function TakeExamPage() {
           {q && qid ? (<>
             <div className="flex items-center justify-between"><span className="text-sm text-muted">Question {idx + 1} of {order.length} · {q.marks} mark{q.marks === 1 ? '' : 's'}</span>
               <Button size="sm" variant={flagged.includes(qid) ? 'gold' : 'outline'} onClick={() => setFlagged((f) => (f.includes(qid) ? f.filter((x) => x !== qid) : [...f, qid]))}><Flag className="h-4 w-4" />{flagged.includes(qid) ? 'Marked' : 'Mark for review'}</Button></div>
-            <p className="whitespace-pre-line text-base font-medium">{q.prompt}</p>
+            <p className="whitespace-pre-line text-base font-medium"><MathText text={q.prompt} /></p>
             {q.imageUrl && <img src={q.imageUrl} alt="Question diagram" className="max-h-64 rounded-md border border-line" />}
             {q.type === 'short' ? (
               <textarea aria-label="Your answer" rows={4} maxLength={2000} className="w-full rounded-md border border-line p-3 text-base focus:outline-none focus:ring-2 focus:ring-forest" value={answers[qid] ?? ''} onChange={(e) => setAnswers((a) => ({ ...a, [qid]: e.target.value }))} />
             ) : (
               <div role="radiogroup" className="space-y-2">{(q.type === 'tf' ? [{ id: 'true', text: 'True' }, { id: 'false', text: 'False' }] : optionsOf(qid)).map((o) => (
                 <label key={o.id} className={cn('flex min-h-12 cursor-pointer items-center gap-3 rounded-md border p-3', answers[qid] === o.id ? 'border-forest bg-forest/5' : 'border-line hover:bg-cream')}>
-                  <input type="radio" name={qid} className="h-4 w-4 accent-forest" checked={answers[qid] === o.id} onChange={() => setAnswers((a) => ({ ...a, [qid]: o.id }))} /><span>{o.text}</span></label>))}
+                  <input type="radio" name={qid} className="h-4 w-4 accent-forest" checked={answers[qid] === o.id} onChange={() => setAnswers((a) => ({ ...a, [qid]: o.id }))} /><span><MathText text={o.text} /></span></label>))}
                 {answers[qid] && <button type="button" className="text-xs text-muted underline" onClick={() => setAnswers((a) => { const n = { ...a }; delete n[qid]; return n; })}>Clear answer</button>}</div>)}
             <div className="flex justify-between pt-2"><Button variant="outline" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>Previous</Button>{idx < order.length - 1 ? <Button onClick={() => setIdx(idx + 1)}>Next</Button> : <Button variant="gold" onClick={() => setConfirm(true)}>Finish</Button>}</div>
           </>) : <EmptyState title="No questions" />}
