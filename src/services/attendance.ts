@@ -13,7 +13,8 @@ export interface Actor { uid: string; name: string; role: string }
 
 /**
  * Learner checks themselves in. The server stamps checkInAt (security rules require it to equal request.time),
- * and the record starts as "pending verification". Clicking the meeting link is logged separately and is NOT attendance.
+ * and the record starts as "pending verification". This is the manual fallback (in-person classes, or a learner who joined without the link).
+ * For online classes, opening the meeting link records attendance automatically: see recordLinkJoin().
  * A second attempt fails (create-only rule), so duplicates are impossible.
  */
 export async function selfCheckIn(session: WithId<Session>, student: { uid: string; name: string; studentId?: string }): Promise<void> {
@@ -24,6 +25,34 @@ export async function selfCheckIn(session: WithId<Session>, student: { uid: stri
     checkInAt: serverTimestamp(), status: 'pending_verification', method: 'self_checkin', verified: false, createdAt: serverTimestamp(),
   };
   await setDoc(doc(db(), C.sessionAttendance, attendanceId(session.id, student.uid)), clean(data));
+}
+
+/**
+ * Automatic attendance: called the moment a learner opens the meeting link from the website.
+ * The record is final (present, no teacher verification needed). The server clock stamps checkInAt; early / on time / late
+ * is derived from it (never chosen by the learner).
+ * Returns 'recorded', 'already' (a record exists) or 'skipped' (outside the class window or not invited).
+ * It never throws: joining the class must never be blocked by an attendance problem.
+ */
+export async function recordLinkJoin(session: WithId<Session>, student: { uid: string; name: string; studentId?: string }, nowMs = Date.now()): Promise<'recorded' | 'already' | 'skipped'> {
+  const start = toDate(session.startAt)?.getTime(); const end = toDate(session.endAt)?.getTime();
+  if (start == null || end == null || session.status !== 'scheduled' || !session.studentUids.includes(student.uid)) return 'skipped';
+  if (nowMs < start - 15 * 60_000 || nowMs > end) return 'skipped';
+  const data = {
+    sessionId: session.id, seriesId: session.seriesId, studentUid: student.uid, studentId: student.studentId ?? '', studentName: (student.name || 'Learner').slice(0, 120),
+    parentUids: session.parentUids ?? [], teacherUid: session.teacherUid, courseId: session.courseId ?? '', classId: session.classId ?? '',
+    monthKey: session.monthKey, scheduledStart: session.startAt, scheduledEnd: session.endAt,
+    checkInAt: serverTimestamp(), status: 'present', method: 'link_click', verified: true,
+    verifiedBy: 'system', verifiedByName: 'Meeting link (automatic)', createdAt: serverTimestamp(),
+  };
+  try {
+    await setDoc(doc(db(), C.sessionAttendance, attendanceId(session.id, student.uid)), clean(data));
+    return 'recorded';
+  } catch (e) {
+    // A record already exists (create-only rule) or the window closed: not an error for the learner.
+    console.warn('automatic attendance not recorded', e);
+    return 'already';
+  }
 }
 
 export interface MarkInput {
