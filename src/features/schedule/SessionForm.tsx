@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/form';
 import { Dialog, useToast } from '@/components/ui/overlay';
@@ -11,7 +11,8 @@ import { checkSchedule, createSeries, editSessions, type EditChanges, type Scope
 import { MAX_OCCURRENCES, defaultRecurrence, type Recurrence } from '@/lib/schedule/recurrence';
 import { DEFAULT_TZ, format12, utcToZoned } from '@/lib/schedule/tz';
 import { errorMessage, toDate } from '@/lib/utils';
-import { hasErrors } from '@/lib/schedule/validate';
+import { hasErrors, previewIssues, scopeTargets, type Issue } from '@/lib/schedule/validate';
+import { useLiveIssues } from './useLiveConflicts';
 import { where } from 'firebase/firestore';
 import type { ClassRoom, Session, Student, Subject, TimetableSeries, UserProfile, WithId } from '@/types/models';
 
@@ -78,6 +79,24 @@ export function SessionForm({ open, onClose, session, initialDate, onDone }: {
   };
   const noLogin = active.filter((s) => sel.has(s.id) && !s.studentUid).length;
 
+  /* ---- live conflict preview: the same check Save runs, shown while the person is still choosing times ---- */
+  const siblingsRef = useRef<{ seriesId: string; rows: WithId<Session>[] } | null>(null);
+  const previewCheck = useCallback(async (): Promise<Issue[]> => {
+    if (!uid) return [];
+    let dates: string[] | undefined; let exclude: string[] | undefined;
+    if (editing && session) {
+      if (siblingsRef.current?.seriesId !== session.seriesId) siblingsRef.current = { seriesId: session.seriesId, rows: await listDocs<Session>(C.sessions, [where('seriesId', '==', session.seriesId)]) };
+      const t = scopeTargets(siblingsRef.current.rows.map((r) => ({ id: r.id, status: r.status, overridden: r.overridden, startMs: toDate(r.startAt)?.getTime() ?? 0, localDate: r.localDate, seriesIndex: r.seriesIndex })), session, scope, Date.now());
+      dates = t.dates; exclude = t.exclude;
+    }
+    const issues = await checkSchedule({ title: f.title, teacherUid: f.teacherUid, classId: editing ? (session?.classId || undefined) : (f.classId || undefined), subjectId: f.subjectId || undefined, courseId: f.courseId || undefined, startDate: f.date, startTime: f.start, endTime: f.end, recurrence: editing ? defaultRecurrence() : rec },
+      { leader, myUid: uid, excludeIds: exclude, dates });
+    return previewIssues(issues);
+  }, [uid, editing, session, scope, f.title, f.teacherUid, f.classId, f.subjectId, f.courseId, f.date, f.start, f.end, rec, leader]);
+  const liveKey = JSON.stringify([session?.id ?? '', scope, f.teacherUid, f.classId, f.subjectId, f.courseId, f.date, f.start, f.end, editing ? '' : rec]);
+  const live = useLiveIssues(previewCheck, liveKey, open && !!f.teacherUid && !!f.date && !!f.start && !!f.end);
+  const liveErrors = live.issues.filter((i) => i.level === 'error'); const liveWarnings = live.issues.filter((i) => i.level === 'warning');
+
   const submit = async () => {
     if (!uid) return;
     if (!f.title.trim()) return toast.error('Give the class a title.');
@@ -94,9 +113,8 @@ export function SessionForm({ open, onClose, session, initialDate, onDone }: {
       let dates: string[] | undefined; let exclude: string[] | undefined;
       if (editing) {
         const sib = await listDocs<Session>(C.sessions, [where('seriesId', '==', session!.seriesId)]);
-        const now = Date.now();
-        const hit = sib.filter((r) => r.id === session!.id || (scope !== 'one' && r.status === 'scheduled' && !r.overridden && (toDate(r.startAt)?.getTime() ?? 0) > now && (scope === 'all' || r.seriesIndex >= session!.seriesIndex)));
-        dates = hit.map((r) => r.localDate); exclude = hit.map((r) => r.id);
+        const t = scopeTargets(sib.map((r) => ({ id: r.id, status: r.status, overridden: r.overridden, startMs: toDate(r.startAt)?.getTime() ?? 0, localDate: r.localDate, seriesIndex: r.seriesIndex })), session!, scope, Date.now());
+        dates = t.dates; exclude = t.exclude;
       }
       const issues = await checkSchedule({ title: f.title, teacherUid: f.teacherUid, classId: editing ? (session!.classId || undefined) : (f.classId || undefined), subjectId: f.subjectId || undefined, courseId: f.courseId || undefined, startDate: f.date, startTime: f.start, endTime: f.end, recurrence: editing ? defaultRecurrence() : rec },
         { leader, myUid: uid, excludeIds: exclude, dates });
@@ -146,6 +164,16 @@ export function SessionForm({ open, onClose, session, initialDate, onDone }: {
           </div>
           <Field label="Location (physical, optional)" className="sm:col-span-2">{(a) => <Input {...a} value={f.location} onChange={(e) => set('location', e.target.value)} />}</Field>
           <Field label="Description" className="sm:col-span-2">{(a) => <Textarea {...a} value={f.description} onChange={(e) => set('description', e.target.value)} />}</Field>
+        </div>
+
+        <div role="status" aria-live="polite" data-testid="live-conflicts" className="rounded-md border border-line p-3 text-sm">
+          {!f.teacherUid ? <p className="text-muted">Choose a teacher to check the timetable for clashes.</p>
+            : live.checking ? <p className="text-muted">Checking the timetable…</p>
+            : live.failed ? <p className="text-muted">Could not check the timetable just now. Saving will check again.</p>
+            : liveErrors.length === 0 && liveWarnings.length === 0 ? <p className="text-ok">No clashes found for these times.</p>
+            : <ul className="space-y-1">{liveErrors.map((i) => <li key={i.code + i.message} className="text-danger">✕ {i.message}</li>)}{liveWarnings.map((i) => <li key={i.code + i.message} className="text-warn">! {i.message}</li>)}</ul>}
+          {!leader && <p className="mt-1 text-xs text-muted">You can only see your own classes here. Clashes with other teachers’ classes are checked by school leaders.</p>}
+          {liveErrors.length > 0 && <p className="mt-1 text-xs text-muted">Saving is blocked until these are fixed.</p>}
         </div>
 
         <fieldset className="space-y-3 rounded-md border border-line p-3"><legend className="px-1 text-sm font-medium">Online meeting</legend>
