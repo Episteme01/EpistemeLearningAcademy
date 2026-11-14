@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardBody, CardHeader, PageHeader, StatCard } from '@/components/ui/card';
 import { Field, Input, Select, Textarea } from '@/components/ui/form';
 import { Dialog, useToast } from '@/components/ui/overlay';
+import { MathText } from '@/components/common/MathText';
 import { Badge, EmptyState, Progress, Spinner, StatusBadge } from '@/components/ui/data';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
@@ -56,12 +57,12 @@ export function QuizTake({ quiz, onClose }: { quiz: Row; onClose: () => void }) 
     <Dialog open onClose={onClose} title={String(quiz.title)} description="Practice quiz — your score is shown after you submit." size="lg" footer={result ? <Button onClick={onClose}>Close</Button> : <><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={() => void submit()}>Submit answers</Button></>}>
       {result && <div role="status" className={`mb-4 rounded-md p-4 text-center ${result.passed ? 'bg-ok-bg text-ok' : 'bg-warn-bg text-warn'}`}><p className="font-heading text-2xl font-semibold">{result.score} / {result.total}</p><p className="text-sm">{result.passed ? 'Well done — you passed!' : 'Keep practising — you can retake this quiz.'}</p></div>}
       <ol className="space-y-6">{questions.map((q, i) => (
-        <li key={q.id}><p className="font-medium">{i + 1}. {q.prompt} <span className="text-xs text-muted">({q.marks} mark{q.marks === 1 ? '' : 's'})</span></p>
+        <li key={q.id}><p className="font-medium">{i + 1}. <MathText text={q.prompt} /> <span className="text-xs text-muted">({q.marks} mark{q.marks === 1 ? '' : 's'})</span></p>
           <div className="mt-2 space-y-1.5">
             {q.type === 'short' ? <Input aria-label={`Answer ${i + 1}`} disabled={!!result} value={answers[q.id] ?? ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} /> :
               (q.type === 'tf' ? [{ id: 'true', text: 'True' }, { id: 'false', text: 'False' }] : q.options).map((o) => {
                 const k = result?.keys[q.id]; const right = result && k?.correct === o.id; const wrong = result && answers[q.id] === o.id && k?.correct !== o.id;
-                return <label key={o.id} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${right ? 'border-ok bg-ok-bg' : wrong ? 'border-danger bg-danger-bg' : 'border-line'}`}><input type="radio" name={q.id} disabled={!!result} checked={answers[q.id] === o.id} onChange={() => setAnswers({ ...answers, [q.id]: o.id })} className="accent-forest-700" />{o.text}</label>;
+                return <label key={o.id} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${right ? 'border-ok bg-ok-bg' : wrong ? 'border-danger bg-danger-bg' : 'border-line'}`}><input type="radio" name={q.id} disabled={!!result} checked={answers[q.id] === o.id} onChange={() => setAnswers({ ...answers, [q.id]: o.id })} className="accent-forest-700" /><MathText text={o.text} /></label>;
               })}
             {result?.keys[q.id]?.explanation && <p className="text-xs text-muted">Explanation: {result.keys[q.id]!.explanation}</p>}
             {result && q.type === 'short' && <p className="text-xs text-muted">Accepted: {(result.keys[q.id]?.accepted ?? []).join(', ')}</p>}
@@ -203,15 +204,46 @@ function StaffAssignments() {
   );
 }
 
-function StudentAssignments() {
+/** Submit (or resubmit) work for one assignment. Used by the Assignments page and by assignments embedded in a course module. */
+export function SubmitAssignmentDialog({ a, existing, onClose }: { a: WithId<Assignment_>; existing?: Row; onClose: () => void }) {
   const { uid, profile, roles } = useAuth();
   const toast = useToast();
+  const [text, setText] = useState(String(existing?.text ?? '')); const [file, setFile] = useState<File | null>(null); const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const submit = async () => {
+    if (!uid || !profile) return;
+    if (!text.trim() && !file) return toast.error('Write an answer or attach a file.');
+    setBusy(true);
+    try {
+      // parents may read their child's submission only if their uid is on it; take it from the learner's own student record
+      const parentUids = profile.studentId ? ((await getById<{ parentUids?: string[] }>(C.students, profile.studentId).catch(() => null))?.parentUids ?? []) : [];
+      const before = existing as { fileRef?: FileRef; fileName?: string; fileUrl?: string } | undefined;
+      let fileRef: FileRef | null = before?.fileRef ?? null; let fileName = before?.fileName ?? ''; let fileUrl = before?.fileUrl ?? '';
+      if (file) {
+        if (!flags.uploads) throw new Error(UPLOADS_OFF_MESSAGE);
+        fileRef = await uploadFor('submission', file, roles, { assignmentId: a.id }); fileName = file.name; fileUrl = '';
+      }
+      await replaceDoc(C.submissions, `${a.id}_${uid}`, { assignmentId: a.id, uid, studentName: profile.displayName, parentUids, text: text.trim(), fileUrl, fileRef, fileName, status: 'submitted', submittedAt: new Date() });
+      // replacing a file: remove the old private copy only after the new submission is saved
+      if (file && before?.fileRef?.provider === 'supabase') void deleteFileRef(before.fileRef).catch(() => undefined);
+      toast.success('Submitted'); onClose();
+    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={a.title} description={`Due ${fmtDate(a.dueAt, true)}`} footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={() => void submit()}>Submit</Button></>}>
+      <p className="mb-4 whitespace-pre-wrap text-sm">{a.instructions}</p>
+      {a.allowText !== false && <Field label="Your answer">{(f) => <Textarea {...f} rows={6} value={text} onChange={(e) => setText(e.target.value)} />}</Field>}
+      {a.allowFile !== false && <div className="mt-3"><Button variant="outline" onClick={() => fileRef.current?.click()}>{file ? file.name : 'Attach a file'}</Button><input ref={fileRef} type="file" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>}
+    </Dialog>
+  );
+}
+
+function StudentAssignments() {
+  const { uid, profile } = useAuth();
   const enr = useCollection<CourseEnrollment>(C.courseEnrollments, () => (uid ? [where('uid', '==', uid)] : null), uid ?? '');
   const subs = useCollection<Row>(C.submissions, () => (uid ? [where('uid', '==', uid)] : null), uid ?? '');
   const [list, setList] = useState<WithId<Assignment_>[]>([]);
   const [sel, setSel] = useState<WithId<Assignment_> | null>(null);
-  const [text, setText] = useState(''); const [file, setFile] = useState<File | null>(null); const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     void (async () => {
       const lists = await Promise.all([
@@ -221,25 +253,6 @@ function StudentAssignments() {
       const m = new Map<string, WithId<Assignment_>>(); lists.flat().forEach((a) => m.set(a.id, a)); setList([...m.values()].sort((a, b) => (toDate(a.dueAt)?.getTime() ?? 0) - (toDate(b.dueAt)?.getTime() ?? 0)));
     })();
   }, [enr.data, profile?.classId]);
-  const submit = async () => {
-    if (!sel || !uid || !profile) return;
-    if (!text.trim() && !file) return toast.error('Write an answer or attach a file.');
-    setBusy(true);
-    try {
-      // parents may read their child's submission only if their uid is on it; take it from the learner's own student record
-      const parentUids = profile.studentId ? ((await getById<{ parentUids?: string[] }>(C.students, profile.studentId).catch(() => null))?.parentUids ?? []) : [];
-      const before = subOf(sel.id) as { fileRef?: FileRef; fileName?: string; fileUrl?: string } | undefined;
-      let fileRef: FileRef | null = before?.fileRef ?? null; let fileName = before?.fileName ?? ''; let fileUrl = before?.fileUrl ?? '';
-      if (file) {
-        if (!flags.uploads) throw new Error(UPLOADS_OFF_MESSAGE);
-        fileRef = await uploadFor('submission', file, roles, { assignmentId: sel.id }); fileName = file.name; fileUrl = '';
-      }
-      await replaceDoc(C.submissions, `${sel.id}_${uid}`, { assignmentId: sel.id, uid, studentName: profile.displayName, parentUids, text: text.trim(), fileUrl, fileRef, fileName, status: 'submitted', submittedAt: new Date() });
-      // replacing a file: remove the old private copy only after the new submission is saved
-      if (file && before?.fileRef?.provider === 'supabase') void deleteFileRef(before.fileRef).catch(() => undefined);
-      toast.success('Submitted'); setSel(null); setText(''); setFile(null);
-    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
-  };
   const subOf = (id: string) => subs.data.find((s) => s.assignmentId === id);
   return (
     <>
@@ -247,12 +260,8 @@ function StudentAssignments() {
       {list.length === 0 ? <Card><EmptyState title="No assignments" description="Assignments from your classes and courses appear here." /></Card> : <div className="space-y-3">{list.map((a) => { const s = subOf(a.id); const late = toDate(a.dueAt) && toDate(a.dueAt)! < new Date(); const locked = !!late && (a as { allowLate?: boolean }).allowLate === false; return (
         <Card key={a.id}><CardBody className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium">{a.title}</p><p className="mt-1 text-sm text-muted line-clamp-2">{a.instructions}</p><p className="mt-1 text-xs text-muted">Due {fmtDate(a.dueAt, true)} {late && !s ? <Badge tone="danger">{locked ? 'closed' : 'overdue'}</Badge> : null}</p>
           {s?.status === 'graded' && <p className="mt-2 text-sm"><strong>{String(s.score)}</strong> / {a.maxScore} — {String(s.feedback ?? '')}</p>}</div>
-          <div className="flex items-center gap-2">{s && <StatusBadge status={String(s.status)} />}{(!s || s.status !== 'graded') && !locked && <Button size="sm" onClick={() => { setSel(a); setText(String(s?.text ?? '')); setFile(null); }}>{s ? 'Resubmit' : 'Submit'}</Button>}</div></CardBody></Card>); })}</div>}
-      <Dialog open={!!sel} onClose={() => setSel(null)} title={sel?.title ?? ''} description={`Due ${fmtDate(sel?.dueAt, true)}`} footer={<><Button variant="outline" onClick={() => setSel(null)}>Cancel</Button><Button loading={busy} onClick={() => void submit()}>Submit</Button></>}>
-        <p className="mb-4 whitespace-pre-wrap text-sm">{sel?.instructions}</p>
-        {sel?.allowText !== false && <Field label="Your answer">{(a) => <Textarea {...a} rows={6} value={text} onChange={(e) => setText(e.target.value)} />}</Field>}
-        {sel?.allowFile !== false && <div className="mt-3"><Button variant="outline" onClick={() => fileRef.current?.click()}>{file ? file.name : 'Attach a file'}</Button><input ref={fileRef} type="file" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>}
-      </Dialog>
+          <div className="flex items-center gap-2">{s && <StatusBadge status={String(s.status)} />}{(!s || s.status !== 'graded') && !locked && <Button size="sm" onClick={() => setSel(a)}>{s ? 'Resubmit' : 'Submit'}</Button>}</div></CardBody></Card>); })}</div>}
+      {sel && <SubmitAssignmentDialog key={sel.id} a={sel} existing={subOf(sel.id)} onClose={() => setSel(null)} />}
     </>
   );
 }
