@@ -66,3 +66,16 @@ describe('report building', () => {
   });
   it('months between', () => { expect(monthsBetween('2026-10-15', '2027-01-02')).toEqual(['2026-10-01', '2026-11-01', '2026-12-01', '2027-01-01']); });
 });
+
+describe('automatic link-click attendance record', () => {
+  const base = { startMs: START };
+  it('is final (not pending) and derives timing from the server check-in time', () => {
+    expect(categoryOf({ ...base, status: 'present', timing: '', checkInMs: T(9, 58) }, 5)).toBe('early');
+    expect(categoryOf({ ...base, status: 'present', timing: '', checkInMs: T(10, 3) }, 5)).toBe('on_time');
+    expect(categoryOf({ ...base, status: 'present', timing: '', checkInMs: T(10, 9) }, 5)).toBe('late');
+  });
+  it('counts toward the attendance percentage immediately', () => {
+    const c = tally(['on_time', 'late', 'absent']);
+    expect(c.attended).toBe(2); expect(c.pending).toBe(0);
+  });
+});
