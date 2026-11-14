@@ -38,7 +38,9 @@ Written 12 Nov 2026. Be aware of the one limit that applies to **everything** be
 | Islamic news from live RSS | Not built; editors add news with sources in the CMS. Per-post link previews on social platforms are not possible on GitHub Pages. |
 | Firebase Storage / Cloud Functions retained | Not used: by agreement the trusted backend is Supabase Edge Functions (Supabase is **not** a database here; Firestore is the only database). |
 | Full security audit by a third party | Rules and functions were self-reviewed only. |
-| Timetable: live conflict preview while typing | Checks run when you press Schedule/Save. |
+| Timetable: live conflict preview while typing | **Built (Phase 12).** The same check now runs about 0.6 s after the form stops changing. Save still re-checks. |
+| PowerPoint inside the browser; PDF.js viewer; LaTeX | **Built (Phase 12)**, see `PHASE12_COURSE_PLAYER_VIEWERS.md`. Needs `npm install` for `pdfjs-dist` and `katex`. |
+| Lesson Studio lessons in course modules; quizzes and assignments in the course player | **Built (Phase 12).** |
 | Real-time cascade of every relationship edit (e.g. renaming a teacher everywhere) | Records keep stable IDs; display names copied into old documents are not rewritten. |
 
 ## D. Deployment checklist
