@@ -288,8 +288,11 @@ export interface Lesson {
   moduleId: string;
   title: string;
   order: number;
-  type: 'text' | 'video' | 'pdf' | 'file' | 'presentation';
+  type: 'text' | 'video' | 'pdf' | 'file' | 'presentation' | 'studio' | 'quiz' | 'assignment';
   content?: string;
+  /** studio: copy of a Lesson Studio lesson (lessonPlans/{studioId}); quiz / assignment: the item embedded in the module */
+  studioId?: string; studioTitle?: string; studioVersion?: number; studioSyncedAt?: TS;
+  quizId?: string; quizTitle?: string; assignmentId?: string; assignmentTitle?: string;
   videoUrl?: string;
   fileUrl?: string;
   /** private submission file (Supabase). */
