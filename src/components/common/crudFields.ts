@@ -1,3 +1,4 @@
+import type { QueryConstraint } from 'firebase/firestore';
 import { z } from 'zod';
 
 export type FieldType =
@@ -15,7 +16,9 @@ export interface FieldDef {
   hint?: string;
   options?: Option[];
   /** type 'ref': pick a document from another collection; stores its id and optionally a label */
-  ref?: { collection: string; label: (row: Record<string, unknown> & { id: string }) => string; labelField?: string; filter?: (row: Record<string, unknown> & { id: string }) => boolean };
+  ref?: { collection: string; label: (row: Record<string, unknown> & { id: string }) => string; labelField?: string; filter?: (row: Record<string, unknown> & { id: string }) => boolean;
+    /** Query constraints for the picker (default: the whole collection). Needed where the security rules only allow narrower queries, e.g. a teacher's own lessons. */
+    constraints?: QueryConstraint[]; constraintsKey?: string };
   defaultValue?: unknown;
   min?: number;
   max?: number;

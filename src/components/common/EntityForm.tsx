@@ -17,7 +17,7 @@ function RefSelect({ field, id, value, onChange, invalid, describedBy }: {
   field: FieldDef; id: string; value: string; onChange: (id: string, row?: Row) => void; invalid: boolean; describedBy?: string;
 }) {
   const ref = field.ref!;
-  const { data, loading } = useCollection<Record<string, unknown>>(ref.collection, () => [], ref.collection);
+  const { data, loading } = useCollection<Record<string, unknown>>(ref.collection, () => ref.constraints ?? [], `${ref.collection}|${ref.constraintsKey ?? ''}`);
   const rows = (data as Row[]).filter((r) => (ref.filter ? ref.filter(r) : true));
   const opts = rows.map((r) => ({ id: r.id, label: ref.label(r), row: r })).sort((a, b) => a.label.localeCompare(b.label));
   return (
@@ -32,7 +32,7 @@ function RefSelect({ field, id, value, onChange, invalid, describedBy }: {
 /** Tick as many documents as needed (e.g. a class's subjects). Stores the ids, and optionally their labels in `labelField`. */
 function MultiRefPicker({ field, value, onChange }: { field: FieldDef; value: string[]; onChange: (ids: string[], labels: string[]) => void }) {
   const ref = field.ref!;
-  const { data, loading } = useCollection<Record<string, unknown>>(ref.collection, () => [], ref.collection);
+  const { data, loading } = useCollection<Record<string, unknown>>(ref.collection, () => ref.constraints ?? [], `${ref.collection}|${ref.constraintsKey ?? ''}`);
   const [q, setQ] = useState('');
   const rows = (data as Row[]).filter((r) => (ref.filter ? ref.filter(r) : true)).map((r) => ({ id: r.id, label: ref.label(r) })).sort((a, b) => a.label.localeCompare(b.label));
   const shown = rows.filter((r) => r.label.toLowerCase().includes(q.trim().toLowerCase()));
