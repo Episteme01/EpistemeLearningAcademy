@@ -486,7 +486,7 @@ export interface SessionAccessLog { sessionId: string; teacherUid: string; uid: 
 /* ------------------------------------------------- Live-class attendance (Phase 3) */
 export type AttStatus = 'pending_verification' | 'present' | 'absent' | 'excused' | 'left_early';
 export type AttTiming = 'early' | 'on_time' | 'late';
-export type AttMethod = 'self_checkin' | 'teacher_confirmed' | 'teacher_marked' | 'auto_finalised';
+export type AttMethod = 'self_checkin' | 'link_click' | 'teacher_confirmed' | 'teacher_marked' | 'auto_finalised';
 
 /** One learner at one session. Document id = `${sessionId}_${studentUid}`, so duplicates are impossible. */
 export interface SessionAttendance {
