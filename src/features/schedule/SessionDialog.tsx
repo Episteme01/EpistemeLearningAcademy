@@ -9,6 +9,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { useCollection } from '@/hooks/useFirestore';
 import { C } from '@/config/collections';
 import { ROLE_LABELS } from '@/config/permissions';
+import { recordLinkJoin } from '@/services/attendance';
 import { cancelSessions, logAccess, markCompleted, readLink, rescheduleSession, type Scope } from '@/services/schedule';
 import { format12, utcToZoned } from '@/lib/schedule/tz';
 import { errorMessage, fmtDate, toDate } from '@/lib/utils';
@@ -51,7 +52,16 @@ export function SessionDialog({ session, tz, onClose, onEdit }: { session: WithI
     try { const l = await readLink(session.id); if (!l) throw new Error('No meeting link was saved for this class.'); setLink(l); void logAccess(session, { uid: uid ?? '', name: by.name, role: role ?? '' }, 'link_view'); }
     catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
   };
-  const open = () => { if (!link) return; void logAccess(session, { uid: uid ?? '', name: by.name, role: role ?? '' }, 'link_click'); window.open(link.meetingUrl, '_blank', 'noopener,noreferrer'); };
+  // Opening is synchronous (popup blockers need that); the attendance write runs alongside and never blocks joining.
+  const open = () => {
+    if (!link) return;
+    const who = { uid: uid ?? '', name: by.name, role: role ?? '' };
+    void logAccess(session, who, 'link_click');
+    if (uid && !canManage && session.studentUids.includes(uid)) {
+      void recordLinkJoin(session, { uid, name: by.name }).then((r) => { if (r === 'recorded') toast.success('Your attendance has been recorded.'); });
+    }
+    window.open(link.meetingUrl, '_blank', 'noopener,noreferrer');
+  };
   const run = async (fn: () => Promise<unknown>, ok: string) => { setBusy(true); try { await fn(); toast.success(ok); setMode('view'); onClose(); } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); } };
 
   return (
@@ -84,7 +94,7 @@ export function SessionDialog({ session, tz, onClose, onEdit }: { session: WithI
                   <dl className="grid gap-2 text-sm sm:grid-cols-2">{link.meetingId && <div><dt className="text-xs text-muted">Meeting ID</dt><dd className="font-mono">{link.meetingId}</dd></div>}{link.passcode && <div><dt className="text-xs text-muted">Passcode</dt><dd className="font-mono">{link.passcode}</dd></div>}</dl>
                   <button type="button" className="inline-flex items-center gap-1 text-xs text-forest-600 underline" onClick={() => void navigator.clipboard?.writeText(link.meetingUrl).then(() => toast.success('Link copied'))}><Copy className="h-3 w-3" /> Copy link</button>
                 </div>)}
-              <p className="mt-2 text-xs text-muted">Opening the link is recorded, but it is not proof of attendance.</p>
+              <p className="mt-2 text-xs text-muted">Learners are marked present automatically when they open the meeting from here.</p>
             </div>)}
 
           <AttendancePanel session={session} />

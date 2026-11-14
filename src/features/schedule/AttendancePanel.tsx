@@ -67,14 +67,14 @@ export function AttendancePanel({ session }: { session: WithId<Session> }) {
         {mine ? (
           <div className="space-y-1">
             <p className="flex flex-wrap items-center gap-2"><CategoryBadge c={categoryOf(asLike(mine), grace)} /> <span className="text-muted">{detailOf(asLike(mine), grace)}</span></p>
-            {mine.checkInAt != null && <p className="text-xs text-muted">Checked in {fmtDate(mine.checkInAt, true)}</p>}
+            {mine.checkInAt != null && <p className="text-xs text-muted">{mine.method === 'link_click' ? 'Recorded automatically when you opened the meeting link' : 'Checked in'} {fmtDate(mine.checkInAt, true)}</p>}
             {mine.status === 'pending_verification' && <p className="text-xs text-muted">Your teacher will confirm this.</p>}
             {mine.note && <p className="text-xs">Note: {mine.note}</p>}
           </div>
         ) : canCheckIn ? (
           <div className="space-y-2">
             <Button loading={busy} onClick={() => void run(() => selfCheckIn(session, { uid: uid!, name: profile?.displayName ?? '' }), 'Checked in. Your teacher will confirm it.')}>I am in class: check me in</Button>
-            <p className="text-xs text-muted">Only check in for yourself. Opening the meeting link does not count as attendance.</p>
+            <p className="text-xs text-muted">{session.online ? 'Opening the meeting from this page marks you present automatically. Use this button only if you joined another way.' : 'Only check in for yourself.'}</p>
           </div>
         ) : (
           <p className="flex items-center gap-1 text-muted"><Clock className="h-4 w-4" /> {now < start - OPEN_BEFORE ? 'Check-in opens 15 minutes before the class.' : session.status === 'completed' || now > end ? 'Check-in is closed. Ask your teacher if you attended.' : 'Not available.'}</p>
