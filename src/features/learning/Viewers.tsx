@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Download, ExternalLink, Maximize2, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/form';
-import { addPlayed, clampPage, googleSlidesEmbed, pdfSrc, presentationKind, stepZoom, unpackRanges, watchedPct, type Range } from '@/lib/learning';
+import { Spinner } from '@/components/ui/data';
+import { addPlayed, clampPage, googleSlidesEmbed, officeViewerSrc, pdfSrc, presentationKind, stepZoom, unpackRanges, watchedPct, type Range } from '@/lib/learning';
 import { parseVideoUrl } from '@/lib/spotlight';
 
-/** Opens a presentation. PDFs use the browser's own viewer; Google Slides are embedded; PowerPoint files are downloaded (browsers cannot display them). */
+// PDF.js is large, so it is only downloaded when a learner actually opens a PDF.
+const PdfJsViewer = lazy(() => import('./PdfJsViewer'));
+
+/** Opens a presentation. PDFs use the in-page PDF.js reader (browser viewer as fallback); Google Slides are embedded; PowerPoint files open in Microsoft's online viewer on request, or can be downloaded. */
 export function PresentationViewer({ url, title, fileName, contentType }: { url: string; title: string; fileName?: string; contentType?: string }) {
   const kind = presentationKind({ url, fileName, contentType });
   const box = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1); const [zoom, setZoom] = useState(100);
+  const [pdfFailed, setPdfFailed] = useState(false); const [office, setOffice] = useState(false);
   const fullscreen = () => { void box.current?.requestFullscreen?.().catch(() => undefined); };
   if (kind === 'slides') {
     const src = googleSlidesEmbed(url)!;
@@ -20,6 +25,9 @@ export function PresentationViewer({ url, title, fileName, contentType }: { url:
         <p className="text-xs text-muted">The deck must be shared as “anyone with the link can view” (or published to the web) for learners to see it.</p>
       </div>
     );
+  }
+  if (kind === 'pdf' && !pdfFailed) {
+    return <div ref={box}><Suspense fallback={<div className="grid h-48 place-items-center"><Spinner /></div>}><PdfJsViewer url={url} title={title} onFail={() => setPdfFailed(true)} /></Suspense></div>;
   }
   if (kind === 'pdf') {
     return (
@@ -39,11 +47,25 @@ export function PresentationViewer({ url, title, fileName, contentType }: { url:
       </div>
     );
   }
+  const officeSrc = kind === 'pptx' ? officeViewerSrc(url) : null;
+  if (kind === 'pptx' && office && officeSrc) {
+    return (
+      <div ref={box} className="space-y-2 bg-white">
+        <div className="aspect-[16/10] w-full overflow-hidden rounded-md border border-line bg-cream"><iframe title={title} src={officeSrc} className="h-full w-full" allowFullScreen sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerPolicy="no-referrer" /></div>
+        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={fullscreen}><Maximize2 className="h-4 w-4" /> Full screen</Button><a href={url} target="_blank" rel="noopener noreferrer" download={fileName}><Button size="sm" variant="outline"><Download className="h-4 w-4" /> Download</Button></a></div>
+        <p className="text-xs text-muted">If the slides do not appear, the link may have expired or the file may be too large for the viewer. Close and reopen this page, or download the file.</p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-3 rounded-md border border-line bg-cream p-4 text-sm">
-      <p>{kind === 'pptx' ? 'PowerPoint files cannot be shown inside the browser. Download it to open in PowerPoint, Google Slides or LibreOffice.' : 'This file type cannot be previewed here.'}</p>
-      <a href={url} target="_blank" rel="noopener noreferrer" download={fileName}><Button><Download className="h-4 w-4" /> Download {fileName || title}</Button></a>
-      {kind === 'pptx' && <p className="text-xs text-muted">Tip for teachers: export the deck as PDF, or share it as a Google Slides link, to give learners an in-page viewer.</p>}
+      <p>{kind === 'pptx' ? 'Your browser cannot display PowerPoint files itself, but you can view the slides here using Microsoft’s free online viewer, or download the file.' : 'This file type cannot be previewed here.'}</p>
+      <div className="flex flex-wrap gap-2">
+        {officeSrc && <Button onClick={() => setOffice(true)}><Maximize2 className="h-4 w-4" /> View slides here</Button>}
+        <a href={url} target="_blank" rel="noopener noreferrer" download={fileName}><Button variant={officeSrc ? 'outline' : 'primary'}><Download className="h-4 w-4" /> Download {fileName || title}</Button></a>
+      </div>
+      {officeSrc && <p className="text-xs text-muted">“View slides here” sends a temporary link to this file to Microsoft so it can draw the slides. Nothing is sent unless you press it.</p>}
+      {kind === 'pptx' && !officeSrc && <p className="text-xs text-muted">This file’s link cannot be opened by the online viewer. Tip for teachers: export the deck as PDF, or share it as a Google Slides link.</p>}
     </div>
   );
 }
