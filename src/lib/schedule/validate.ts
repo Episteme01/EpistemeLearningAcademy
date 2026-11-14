@@ -53,3 +53,16 @@ export function validateSchedule(c: Candidate, ctx: ScheduleContext): Issue[] {
   return out;
 }
 export const hasErrors = (i: Issue[]) => i.some((x) => x.level === 'error');
+
+/** The live preview stays quiet about fields the person has not filled in yet; the save button still runs the full check. */
+export const previewIssues = (i: Issue[]): Issue[] => i.filter((x) => x.code !== 'no_teacher');
+
+export interface TargetRow { id: string; status: string; overridden?: boolean; startMs: number; localDate: string; seriesIndex: number }
+/**
+ * Which sessions an edit touches: the session itself, plus (for "this and later" / "whole series") upcoming scheduled
+ * siblings that were not individually edited. Shared by the live preview and the save check so they always agree.
+ */
+export function scopeTargets(siblings: TargetRow[], current: { id: string; seriesIndex: number }, scope: 'one' | 'future' | 'all', nowMs: number): { dates: string[]; exclude: string[] } {
+  const hit = siblings.filter((r) => r.id === current.id || (scope !== 'one' && r.status === 'scheduled' && !r.overridden && r.startMs > nowMs && (scope === 'all' || r.seriesIndex >= current.seriesIndex)));
+  return { dates: hit.map((r) => r.localDate), exclude: hit.map((r) => r.id) };
+}
