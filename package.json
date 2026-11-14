@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Episteme Learning Academy — Public Website, CMS, EMS, LMS and CBT on React + Firebase",
-  "engines": { "node": ">=20.19.0" },
+  "description": "Episteme Learning Academy \u2014 Public Website, CMS, EMS, LMS and CBT on React + Firebase",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "vite",
     "prebuild": "node scripts/generate-sitemap.mjs",
@@ -24,8 +26,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^12.0.0",
+    "katex": "^0.16.11",
     "lucide-react": ">=0.468.0 <1.0.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "4.10.38",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.62.0",
@@ -37,6 +41,7 @@
   "devDependencies": {
     "@eslint/js": "^9.30.0",
     "@tailwindcss/vite": "^4.1.0",
+    "@types/katex": "^0.16.7",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
